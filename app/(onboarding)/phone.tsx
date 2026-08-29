@@ -62,11 +62,13 @@ export default function PhoneScreen() {
       </View>
       {error ? <Text variant="caption" tone="danger" style={{ marginTop: space.sm }}>{error}</Text> : null}
 
-      {__DEV__ && (
+      {/* TEMP: forced on for the unconfigured-SMS preview build so testers can get past this
+          screen — restore the `__DEV__` gate before any real store/production build. */}
+      {true && (
         <View style={{ marginTop: space.xxl, alignItems: 'center' }}>
           <View style={[styles.devDivider, { backgroundColor: colors.border }]} />
           <Text variant="micro" tone="tertiary" style={{ marginTop: space.lg, marginBottom: space.sm }}>
-            DEV ONLY — NO SMS PROVIDER CONFIGURED YET
+            PREVIEW BUILD — NO SMS PROVIDER CONFIGURED YET
           </Text>
           <Button
             label={devLoading ? 'Signing in…' : 'Skip — preview with a test account'}
