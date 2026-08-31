@@ -15,8 +15,11 @@ import { Button } from '@/components/ui/Button';
 import { EntityAutocomplete } from '@/components/ui/EntityAutocomplete';
 import { FlockPicker } from '@/components/shared/FlockPicker';
 import { PaymentSheet, CashSheet } from '@/components/money/MoneySheets';
+import { ReceiptAttach } from '@/components/receipts/ReceiptAttach';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useAuth } from '@/lib/AuthContext';
+import { uploadReceipt, ReceiptAsset } from '@/lib/receipts';
 import { supabase, EXPENSE_CATEGORIES, PAYMENT_METHODS, FlockSummary } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
 import { space, radius, elevation } from '@/lib/theme';
@@ -204,6 +207,7 @@ DailySheet.displayName = 'DailySheet';
 // ---------------------------------------------------------------------------
 const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const { farm } = useFarm();
+  const { session } = useAuth();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [item, setItem] = useState('');
@@ -211,6 +215,7 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const [cost, setCost] = useState('');
   const [supplier, setSupplier] = useState<{ id: string; name: string } | null>(null);
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
+  const [receipt, setReceipt] = useState<ReceiptAsset | null>(null);
   const [saving, setSaving] = useState(false);
 
   const total = (Number(qty) || 1) * (Number(cost) || 0);
@@ -218,19 +223,43 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const save = async () => {
     if (!farm || !cost) return;
     setSaving(true);
-    await supabase.from('expenses').insert({
-      farm_id: farm.id,
-      flock_id: flockId,
-      expense_date: new Date().toISOString().slice(0, 10),
-      category,
-      item: item || null,
-      quantity: qty ? Number(qty) : null,
-      cost_per_unit: Number(cost),
-      supplier_id: supplier?.id ?? null,
-      payment_method: method,
-    });
+
+    const { data: expense, error } = await supabase
+      .from('expenses')
+      .insert({
+        farm_id: farm.id,
+        flock_id: flockId,
+        expense_date: new Date().toISOString().slice(0, 10),
+        category,
+        item: item || null,
+        quantity: qty ? Number(qty) : null,
+        cost_per_unit: Number(cost),
+        supplier_id: supplier?.id ?? null,
+        payment_method: method,
+      })
+      .select('id')
+      .single();
+
+    // Upload the photo only once the expense exists, so the receipt can point
+    // at a real row. A failed upload must not lose the expense itself — the
+    // cost is the important record, the photo is the evidence.
+    if (!error && expense && receipt) {
+      const uploaded = await uploadReceipt({
+        farmId: farm.id,
+        userId: session?.user?.id,
+        asset: receipt,
+        relatedTable: 'expenses',
+        relatedId: expense.id,
+        description: `${category}${item ? ` · ${item}` : ''}`,
+        amount: total,
+      });
+      if (uploaded.ok) {
+        await supabase.from('expenses').update({ receipt_url: uploaded.path }).eq('id', expense.id);
+      }
+    }
+
     setSaving(false);
-    setItem(''); setQty(''); setCost(''); setSupplier(null);
+    setItem(''); setQty(''); setCost(''); setSupplier(null); setReceipt(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     (ref as any)?.current?.close();
   };
@@ -271,11 +300,13 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
       <EntityAutocomplete label="Supplier" table="suppliers" value={supplier} onChange={setSupplier} />
 
       <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>PAYMENT METHOD</Text>
-      <View style={styles.chipWrap}>
+      <View style={[styles.chipWrap, { marginBottom: space.lg }]}>
         {PAYMENT_METHODS.map((m) => (
           <Chip key={m} label={m} selected={method === m} onPress={() => setMethod(m)} />
         ))}
       </View>
+
+      <ReceiptAttach value={receipt} onChange={setReceipt} />
     </Sheet>
   );
 });

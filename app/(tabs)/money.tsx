@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, StyleSheet, Linking } from 'react-native';
+import { View, StyleSheet, Linking, Modal } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { Image } from 'expo-image';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text } from '@/components/ui/Text';
@@ -18,6 +19,7 @@ import { PaymentSheet, CashSheet } from '@/components/money/MoneySheets';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase, MONEY_TX } from '@/lib/supabase';
+import { signReceiptUrls } from '@/lib/receipts';
 import { formatKES, formatCompactKES, daysBetween, formatShortDate } from '@/lib/format';
 import { space, radius } from '@/lib/theme';
 
@@ -42,6 +44,8 @@ export default function MoneyScreen() {
   const [txs, setTxs] = useState<any[]>([]);
   const [cashIn, setCashIn] = useState(0);
   const [cashOut, setCashOut] = useState(0);
+  const [receiptUrls, setReceiptUrls] = useState<Record<string, string>>({});
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const paymentRef = useRef<BottomSheet>(null);
@@ -61,6 +65,11 @@ export default function MoneyScreen() {
     setBalances((bal as CustomerBalance[]) ?? []);
     setExpenses(exp ?? []);
     setTxs(money ?? []);
+
+    // Sign the thumbnails for any expense that has a receipt attached. The
+    // bucket is private, so a stored path is useless without this.
+    const receiptPaths = (exp ?? []).map((e: any) => e.receipt_url).filter(Boolean);
+    setReceiptUrls(receiptPaths.length ? await signReceiptUrls(receiptPaths) : {});
 
     const salePaid = (sales ?? []).reduce((s, r: any) => s + Number(r.amount_paid), 0);
     const paymentsIn = (pay ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
@@ -220,21 +229,33 @@ export default function MoneyScreen() {
                 <EmptyState icon="receipt-outline" title="No expenses logged" body="Log your first cost from the Log tab." />
               </View>
             ) : (
-              expenses.map((e, i) => (
-                <FadeInView key={e.id} index={i} style={{ marginTop: space.sm }}>
-                  <Card>
-                    <View style={styles.debtHead}>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="bodyMed" numberOfLines={1}>
-                          {e.category}{e.item ? ` · ${e.item}` : ''}
-                        </Text>
-                        <Text variant="caption" tone="tertiary">{formatShortDate(e.expense_date)}</Text>
+              expenses.map((e, i) => {
+                const thumb = e.receipt_url ? receiptUrls[e.receipt_url] : null;
+                return (
+                  <FadeInView key={e.id} index={i} style={{ marginTop: space.sm }}>
+                    <Card>
+                      <View style={styles.debtHead}>
+                        {thumb ? (
+                          <AnimatedPressable
+                            onPress={() => setViewingReceipt(thumb)}
+                            haptic="selection"
+                            accessibilityLabel="View receipt"
+                            style={{ marginRight: space.md }}>
+                            <Image source={{ uri: thumb }} style={styles.receiptThumb} contentFit="cover" transition={150} />
+                          </AnimatedPressable>
+                        ) : null}
+                        <View style={{ flex: 1 }}>
+                          <Text variant="bodyMed" numberOfLines={1}>
+                            {e.category}{e.item ? ` · ${e.item}` : ''}
+                          </Text>
+                          <Text variant="caption" tone="tertiary">{formatShortDate(e.expense_date)}</Text>
+                        </View>
+                        <Text variant="bodyMed">{formatKES(e.total_cost)}</Text>
                       </View>
-                      <Text variant="bodyMed">{formatKES(e.total_cost)}</Text>
-                    </View>
-                  </Card>
-                </FadeInView>
-              ))
+                    </Card>
+                  </FadeInView>
+                );
+              })
             )}
           </>
         )}
@@ -319,6 +340,26 @@ export default function MoneyScreen() {
         onSaved={load}
       />
       <CashSheet ref={cashRef} onSaved={load} />
+
+      <Modal
+        visible={!!viewingReceipt}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setViewingReceipt(null)}>
+        <View style={styles.viewerBackdrop}>
+          <AnimatedPressable
+            onPress={() => setViewingReceipt(null)}
+            haptic="selection"
+            accessibilityLabel="Close receipt"
+            style={styles.viewerClose}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </AnimatedPressable>
+          {viewingReceipt ? (
+            <Image source={{ uri: viewingReceipt }} style={styles.viewerImage} contentFit="contain" transition={180} />
+          ) : null}
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -344,4 +385,24 @@ const styles = StyleSheet.create({
   },
   waBtn: { width: 44, height: 42, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   footDivider: { width: 1, height: 30, marginHorizontal: space.lg },
+  receiptThumb: { width: 42, height: 42, borderRadius: radius.sm },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerClose: {
+    position: 'absolute',
+    top: 56,
+    right: space.xl,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  viewerImage: { width: '92%', height: '72%' },
 });

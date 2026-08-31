@@ -48,6 +48,14 @@
       "@react-native-community/datetimepicker",
       "expo-image",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Boma uses your photos so you can attach a receipt to an expense.",
+          "cameraPermission": "Boma uses the camera so you can photograph a receipt.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
