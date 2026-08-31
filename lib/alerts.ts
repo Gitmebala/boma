@@ -100,6 +100,50 @@ export async function buildAlerts(farmId: string): Promise<BomaAlert[]> {
     });
   }
 
+  // Water intake drops 12-24h before a sick bird is visible to the eye —
+  // the earliest signal a farmer has, and until now nothing watched it.
+  if (flockIds.length) {
+    const codeByFlock = new Map((flocks ?? []).map((f: any) => [f.flock_id, f.flock_code]));
+    const since = new Date(Date.now() - 4 * 86400000).toISOString().slice(0, 10);
+    const { data: waterLogs } = await supabase
+      .from('daily_logs')
+      .select('flock_id, log_date, water_litres')
+      .in('flock_id', flockIds)
+      .gte('log_date', since)
+      .not('water_litres', 'is', null)
+      .order('log_date', { ascending: false });
+
+    const byFlock = new Map<string, { log_date: string; water_litres: number }[]>();
+    (waterLogs ?? []).forEach((l: any) => {
+      const list = byFlock.get(l.flock_id) ?? [];
+      list.push(l);
+      byFlock.set(l.flock_id, list);
+    });
+
+    byFlock.forEach((entries, flockId) => {
+      // entries[0] is the latest day (query ordered descending); compare it
+      // against the flock's own trailing average, not a breed-chart figure —
+      // house size and weather vary too much for one number to fit every farm.
+      const [latest, ...prior] = entries;
+      if (!latest || prior.length === 0) return;
+      const avgPrior = prior.reduce((s, e) => s + Number(e.water_litres), 0) / prior.length;
+      if (avgPrior <= 0) return;
+
+      const dropPct = (avgPrior - Number(latest.water_litres)) / avgPrior;
+      if (dropPct > 0.2) {
+        alerts.push({
+          id: `water-drop-${flockId}-${latest.log_date}`,
+          icon: 'water',
+          severity: 'attention',
+          title: 'Water intake dropped',
+          detail: `${codeByFlock.get(flockId) ?? 'A batch'}: ${Math.round(dropPct * 100)}% below its own recent average.`,
+          action: 'Often the earliest sign of illness — check the birds today, before anything looks visibly wrong.',
+          href: `/(tabs)/flocks/${flockId}`,
+        });
+      }
+    });
+  }
+
   const { data: balances } = await supabase
     .from('customer_balances')
     .select('*')

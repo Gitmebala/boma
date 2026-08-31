@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, StyleProp, ViewStyle, LayoutChangeEvent } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text } from './Text';
 import { useTheme } from '@/lib/ThemeContext';
@@ -190,6 +190,105 @@ export function StackedBar({
   );
 }
 
+// ---------------------------------------------------------------------------
+// GrowthCurve — logged weigh-ins against a breed target, two-series line
+// ---------------------------------------------------------------------------
+// No SVG dependency in this project, so a two-series line chart is built from
+// plain Views: each segment between two points is a 2px-tall View sized to
+// the distance between them and rotated to the angle between them — a
+// standard RN technique for a "line" without a drawing surface. At this data
+// density (a handful of weigh-ins over a 6-week cycle) it renders crisply on
+// any Android device and costs nothing extra to ship.
+export interface CurvePoint { day: number; kg: number; }
+
+export function GrowthCurve({
+  actual,
+  target,
+  height = 160,
+  maxDay,
+}: {
+  /** The flock's own logged weigh-ins, sorted by day. */
+  actual: CurvePoint[];
+  /** Breed performance-objective curve for the same day range. */
+  target: CurvePoint[];
+  height?: number;
+  maxDay: number;
+}) {
+  const { colors } = useTheme();
+  const [width, setWidth] = useState(0);
+  const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+
+  const allKg = [...actual, ...target].map((p) => p.kg);
+  const maxKg = Math.max(...allKg, 0.1) * 1.12; // headroom so the top point isn't clipped
+
+  const toXY = (p: CurvePoint) => ({
+    x: (p.day / Math.max(1, maxDay)) * width,
+    y: height - (p.kg / maxKg) * height,
+  });
+
+  function Line({ points, color, thickness, dashed }: { points: CurvePoint[]; color: string; thickness: number; dashed?: boolean }) {
+    if (points.length < 2 || width === 0) return null;
+    const xy = points.map(toXY);
+    return (
+      <>
+        {xy.slice(0, -1).map((a, i) => {
+          const b = xy[i + 1];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+          // Center-pivot rotation rather than transformOrigin (broader RN
+          // version support): position the segment by its own midpoint,
+          // where the default rotation origin already sits.
+          const midX = (a.x + b.x) / 2;
+          const midY = (a.y + b.y) / 2;
+          return (
+            <View
+              key={i}
+              style={{
+                position: 'absolute',
+                left: midX - dist / 2,
+                top: midY - thickness / 2,
+                width: dist,
+                height: thickness,
+                backgroundColor: color,
+                opacity: dashed ? 0.4 : 1,
+                borderRadius: thickness / 2,
+                transform: [{ rotate: `${angle}rad` }],
+              }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  return (
+    <View onLayout={onLayout} style={{ height, width: '100%' }}>
+      {/* Baseline grid — a single mid-line is enough context at this size
+          without turning the chart into a spreadsheet. */}
+      <View style={[styles.curveGrid, { top: height / 2, backgroundColor: colors.borderFaint }]} />
+
+      <Line points={target} color={colors.textQuiet} thickness={2} dashed />
+      <Line points={actual} color={colors.accent} thickness={3} />
+
+      {width > 0 &&
+        actual.map((p, i) => {
+          const { x, y } = toXY(p);
+          return (
+            <View
+              key={i}
+              style={[
+                styles.curveDot,
+                { left: x - 4, top: y - 4, backgroundColor: colors.accent, borderColor: colors.surface },
+              ]}
+            />
+          );
+        })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   sparkRow: { flexDirection: 'row', alignItems: 'flex-end' },
   bulletTrack: { overflow: 'visible', justifyContent: 'center' },
@@ -201,5 +300,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
+  },
+  curveGrid: { position: 'absolute', left: 0, right: 0, height: 1 },
+  curveDot: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
   },
 });

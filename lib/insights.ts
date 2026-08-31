@@ -25,6 +25,67 @@ export const BROILER = {
   feedShareOfCost: 0.7,
 };
 
+/**
+ * Cobb 500 as-hatched performance-objective body weight, kg, at weekly ages.
+ * Published breed-standard reference points (Cobb-Vantress performance
+ * objectives) — used only as the comparison line on the growth chart, never
+ * as a substitute for a flock's own logged weigh-ins.
+ */
+const COBB500_TARGET_KG: { day: number; kg: number }[] = [
+  { day: 0, kg: 0.042 },
+  { day: 7, kg: 0.19 },
+  { day: 14, kg: 0.48 },
+  { day: 21, kg: 0.92 },
+  { day: 28, kg: 1.48 },
+  { day: 35, kg: 2.1 },
+  { day: 42, kg: 2.7 },
+  { day: 49, kg: 3.25 },
+];
+
+/** Target weight at an arbitrary day age, linearly interpolated between the
+ *  published weekly points — smooth enough for a comparison line, and never
+ *  presented as more precise than it is. */
+export function cobb500TargetKg(day: number): number {
+  const pts = COBB500_TARGET_KG;
+  if (day <= pts[0].day) return pts[0].kg;
+  if (day >= pts[pts.length - 1].day) return pts[pts.length - 1].kg;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (day >= a.day && day <= b.day) {
+      const frac = (day - a.day) / (b.day - a.day);
+      return a.kg + (b.kg - a.kg) * frac;
+    }
+  }
+  return pts[pts.length - 1].kg;
+}
+
+export function cobb500Curve(maxDay: number): { day: number; kg: number }[] {
+  return COBB500_TARGET_KG.filter((p) => p.day <= maxDay + 7);
+}
+
+export interface GrowthVerdict {
+  text: string;
+  tone: 'success' | 'warning' | 'danger' | 'primary';
+}
+
+/** Plain-language read on the latest weigh-in against the breed target. */
+export function growthVerdict(latestDay: number, latestKg: number): GrowthVerdict {
+  const target = cobb500TargetKg(latestDay);
+  if (target <= 0) return { text: 'Not enough data yet.', tone: 'primary' };
+
+  const diffG = Math.round((latestKg - target) * 1000);
+  const pct = diffG / (target * 1000);
+
+  if (pct >= -0.05) {
+    return { text: diffG >= 0 ? `On track — ${diffG}g ahead of target.` : 'On track for a Cobb 500 at this age.', tone: 'success' };
+  }
+  if (pct >= -0.15) {
+    return { text: `${Math.abs(diffG)}g behind target for day ${latestDay} — worth watching.`, tone: 'warning' };
+  }
+  return { text: `${Math.abs(diffG)}g behind target for day ${latestDay} — check feed intake and health.`, tone: 'danger' };
+}
+
 export type Health = 'good' | 'watch' | 'bad' | 'unknown';
 
 export interface FlockProjection {

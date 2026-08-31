@@ -145,6 +145,7 @@ export interface DailyLog {
   cause_of_death: string | null;
   feed_used_kg: number | null;
   avg_weight_sample_kg: number | null;
+  water_litres: number | null;
   water_temp_note: string | null;
   observations: string | null;
   recorded_by: string | null;

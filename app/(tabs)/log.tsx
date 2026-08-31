@@ -24,7 +24,7 @@ import { supabase, EXPENSE_CATEGORIES, PAYMENT_METHODS, FlockSummary } from '@/l
 import { formatKES } from '@/lib/format';
 import { space, radius, elevation } from '@/lib/theme';
 
-type ActionKey = 'deaths' | 'feed' | 'weigh' | 'expense' | 'sale' | 'payment' | 'cash';
+type ActionKey = 'deaths' | 'feed' | 'weigh' | 'water' | 'expense' | 'sale' | 'payment' | 'cash';
 
 const GROUPS: {
   title: string;
@@ -38,6 +38,10 @@ const GROUPS: {
       { key: 'deaths', label: 'Deaths', hint: 'Birds lost today', icon: 'alert-circle-outline', tone: 'danger' },
       { key: 'feed', label: 'Feed', hint: 'Bags or kg used', icon: 'nutrition-outline', tone: 'accent' },
       { key: 'weigh', label: 'Weigh-in', hint: 'Sample weight', icon: 'speedometer-outline', tone: 'accent' },
+      // The earliest warning a farmer has: intake drops 12-24h before a sick
+      // bird is visible to the eye. Worth its own daily habit, not buried
+      // inside "observations" free text where nothing can watch it.
+      { key: 'water', label: 'Water', hint: 'Litres drunk today', icon: 'water-outline', tone: 'accent' },
     ],
   },
   {
@@ -58,7 +62,7 @@ export default function LogScreen() {
   const saleRef = useRef<BottomSheet>(null);
   const paymentRef = useRef<BottomSheet>(null);
   const cashRef = useRef<BottomSheet>(null);
-  const [dailyMode, setDailyMode] = useState<'deaths' | 'feed' | 'weigh'>('deaths');
+  const [dailyMode, setDailyMode] = useState<'deaths' | 'feed' | 'weigh' | 'water'>('deaths');
 
   const open = (key: ActionKey) => {
     Haptics.selectionAsync();
@@ -156,23 +160,25 @@ function ActionRow({
 // ---------------------------------------------------------------------------
 // Daily log
 // ---------------------------------------------------------------------------
-const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'weigh' }>(({ mode }, ref) => {
+const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'weigh' | 'water' }>(({ mode }, ref) => {
   const { colors } = useTheme();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [deaths, setDeaths] = useState('');
   const [feed, setFeed] = useState('');
   const [weight, setWeight] = useState('');
+  const [water, setWater] = useState('');
   // A farmer often opens the app the morning after — v1 could only record
   // "today", which silently mis-dated every one of those entries.
   const [agoDays, setAgoDays] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const titles = { deaths: 'Log deaths', feed: 'Log feed used', weigh: 'Log a weigh-in' };
+  const titles = { deaths: 'Log deaths', feed: 'Log feed used', weigh: 'Log a weigh-in', water: 'Log water drunk' };
   const subtitles = {
     deaths: 'Leave it at zero if none died.',
     feed: 'Total eaten by this batch that day.',
     weigh: 'Weigh a handful of birds and enter the average.',
+    water: 'A sudden drop is often the first sign of illness — before a sick bird is visible.',
   };
 
   const save = async () => {
@@ -185,10 +191,11 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       birds_died: mode === 'deaths' ? Number(deaths) || 0 : 0,
       feed_used_kg: mode === 'feed' && feed ? Number(feed) : null,
       avg_weight_sample_kg: mode === 'weigh' && weight ? Number(weight) : null,
+      water_litres: mode === 'water' && water ? Number(water) : null,
     });
     setSaving(false);
     if (err) { setError('Not saved — check your signal and try again.'); return; }
-    setDeaths(''); setFeed(''); setWeight(''); setAgoDays(0);
+    setDeaths(''); setFeed(''); setWeight(''); setWater(''); setAgoDays(0);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     (ref as any)?.current?.close();
   };
@@ -219,6 +226,7 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       {mode === 'deaths' && <Field label="Birds died" value={deaths} onChangeText={setDeaths} keyboardType="number-pad" />}
       {mode === 'feed' && <Field label="Feed used (kg)" value={feed} onChangeText={setFeed} keyboardType="decimal-pad" suffix="kg" />}
       {mode === 'weigh' && <Field label="Average sample weight (kg)" value={weight} onChangeText={setWeight} keyboardType="decimal-pad" suffix="kg" />}
+      {mode === 'water' && <Field label="Water drunk (litres)" value={water} onChangeText={setWater} keyboardType="decimal-pad" suffix="L" />}
     </Sheet>
   );
 });

@@ -14,9 +14,11 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Sheet } from '@/components/ui/Sheet';
 import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
+import { GrowthCurve, CurvePoint } from '@/components/ui/Charts';
 import { useTheme } from '@/lib/ThemeContext';
 import { supabase, Flock, FlockSummary, Vaccination, DailyLog, Expense } from '@/lib/supabase';
 import { formatPct, formatKES, daysBetween, formatShortDate } from '@/lib/format';
+import { cobb500Curve, growthVerdict } from '@/lib/insights';
 import { space, radius, layout } from '@/lib/theme';
 
 const TABS = ['Overview', 'Growth', 'Vaccines', 'Costs'] as const;
@@ -63,6 +65,29 @@ export default function FlockDetailScreen() {
     const survivalPct = (1 - summary.mortality_rate) * 100;
     return (survivalPct * dailyGainG) / (summary.fcr * 10);
   }, [summary, logs, flock]);
+
+  // Weigh-ins were saved but never plotted — a farmer had to compare numbers
+  // in their head against a breed chart they don't have. `logs` is capped at
+  // the 30 most recent entries and ordered newest-first; re-sort to day age
+  // ascending for a left-to-right curve.
+  const weighIns = useMemo<CurvePoint[]>(() => {
+    if (!flock) return [];
+    return logs
+      .filter((l) => l.avg_weight_sample_kg != null)
+      .map((l) => ({ day: daysBetween(flock.date_arrived, l.log_date), kg: Number(l.avg_weight_sample_kg) }))
+      .filter((p) => p.day >= 0)
+      .sort((a, b) => a.day - b.day);
+  }, [logs, flock]);
+
+  const curveMaxDay = Math.max(flock?.weeks_to_market ? flock.weeks_to_market * 7 : 42, ...weighIns.map((p) => p.day), 7);
+  const targetCurve = useMemo<CurvePoint[]>(() => cobb500Curve(curveMaxDay), [curveMaxDay]);
+  const latestVerdict = useMemo(() => {
+    const latest = weighIns[weighIns.length - 1];
+    return latest ? growthVerdict(latest.day, latest.kg) : { text: '', tone: 'primary' as const };
+  }, [weighIns]);
+
+  const verdictColor = { success: colors.success, warning: colors.warning, danger: colors.danger, primary: colors.textSecondary };
+  const verdictSoft = { success: colors.successSoft, warning: colors.warningSoft, danger: colors.dangerSoft, primary: colors.surfaceSunken };
 
   if (!flock || !summary) {
     return (
@@ -189,6 +214,27 @@ export default function FlockDetailScreen() {
 
         {tab === 'Growth' && (
           <FadeInView style={{ gap: space.md }}>
+            {weighIns.length > 0 && (
+              <Card>
+                <View style={styles.rowBetween}>
+                  <Text variant="h3">Weight vs Cobb 500 target</Text>
+                </View>
+                <GrowthCurve actual={weighIns} target={targetCurve} maxDay={curveMaxDay} height={150} />
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
+                    <Text variant="micro" tone="tertiary">This batch</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDash, { backgroundColor: colors.textQuiet }]} />
+                    <Text variant="micro" tone="tertiary">Cobb 500 target</Text>
+                  </View>
+                </View>
+                <View style={[styles.verdictBadge, { backgroundColor: verdictSoft[latestVerdict.tone] }]}>
+                  <Text variant="caption" style={{ color: verdictColor[latestVerdict.tone] }}>{latestVerdict.text}</Text>
+                </View>
+              </Card>
+            )}
             <Button label="+ Log today's entry" onPress={() => logSheetRef.current?.expand()} />
             {logs.length === 0 ? (
               <Text variant="body" tone="tertiary" style={{ textAlign: 'center', marginTop: space.xl }}>No entries yet.</Text>
@@ -334,6 +380,12 @@ const styles = StyleSheet.create({
   tabItem: { paddingBottom: space.md, alignItems: 'center' },
   tabIndicator: { height: 2, width: '100%', borderRadius: 1, marginTop: 8, position: 'absolute', bottom: 0 },
   body: { padding: space.xl, paddingBottom: layout.tabBarClearance },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  legendRow: { flexDirection: 'row', gap: space.lg, marginTop: space.md },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendDash: { width: 14, height: 2, borderRadius: 1 },
+  verdictBadge: { marginTop: space.md, padding: space.sm, borderRadius: radius.sm },
   row2: { flexDirection: 'row', gap: space.md },
   birdRow: { flexDirection: 'row', marginTop: space.md },
   logRow: { flexDirection: 'row', alignItems: 'center' },
