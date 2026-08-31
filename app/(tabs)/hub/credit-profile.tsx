@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase, FlockSummary } from '@/lib/supabase';
 import { formatKES, formatPct } from '@/lib/format';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 export default function CreditProfileScreen() {
   const { colors } = useTheme();
@@ -77,7 +77,7 @@ export default function CreditProfileScreen() {
         <Text variant="h2" style={{ marginLeft: space.md }}>Credit profile</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         {batches === 0 ? (
           <EmptyState
             icon="document-text-outline"
@@ -136,7 +136,6 @@ export default function CreditProfileScreen() {
             </Card>
           </>
         )}
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

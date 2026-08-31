@@ -4,7 +4,17 @@ import { useTheme } from '@/lib/ThemeContext';
 import { type } from '@/lib/theme';
 
 type Variant = keyof typeof type;
-type Tone = 'primary' | 'secondary' | 'tertiary' | 'accent' | 'success' | 'warning' | 'danger' | 'inverse';
+type Tone =
+  | 'primary'
+  | 'secondary'
+  | 'tertiary'
+  | 'quiet'
+  | 'accent'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info'
+  | 'inverse';
 
 interface Props extends TextProps {
   variant?: Variant;
@@ -18,10 +28,12 @@ export function Text({ variant = 'body', tone = 'primary', style, ...rest }: Pro
     primary: colors.textPrimary,
     secondary: colors.textSecondary,
     tertiary: colors.textTertiary,
+    quiet: colors.textQuiet,
     accent: colors.accent,
     success: colors.success,
     warning: colors.warning,
     danger: colors.danger,
+    info: colors.info,
     inverse: colors.accentText,
   };
   return <RNText {...rest} style={[type[variant] as TextStyle, { color: toneColor[tone] }, style]} />;

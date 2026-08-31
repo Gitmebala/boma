@@ -1,31 +1,51 @@
 import { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useAuth } from '@/lib/AuthContext';
 import { useFarm } from '@/lib/FarmContext';
 import { useTheme } from '@/lib/ThemeContext';
-import { Text } from '@/components/ui/Text';
+
+/** Matches the logo artwork's own background so the handover from the native
+ *  splash to this screen is seamless — no flash of a different colour. */
+const BRAND_CREAM = '#F2F2E3';
 
 export default function Index() {
   const { session, initializing } = useAuth();
   const { farm, loading: farmLoading } = useFarm();
   const { colors } = useTheme();
 
-  const pulse = useSharedValue(0.5);
+  const pulse = useSharedValue(0.65);
   useEffect(() => {
-    pulse.value = withRepeat(withSequence(
-      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
-      withTiming(0.5, { duration: 900, easing: Easing.inOut(Easing.sin) })
-    ), -1, true);
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.65, { duration: 900, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
   }, []);
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
   if (initializing || (session && farmLoading)) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+      <View style={[styles.center, { backgroundColor: BRAND_CREAM }]}>
         <Animated.View style={pulseStyle}>
-          <Text variant="hero" tone="accent">Boma</Text>
+          <Image
+            source={require('@/assets/images/boma-logo.png')}
+            style={styles.logo}
+            contentFit="contain"
+            transition={200}
+          />
         </Animated.View>
       </View>
     );
@@ -38,4 +58,5 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 200, height: 200 },
 });

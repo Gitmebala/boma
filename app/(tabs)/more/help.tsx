@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useTheme } from '@/lib/ThemeContext';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 const FAQ = [
   { q: 'A formula or number looks wrong', a: 'Pull to refresh on Home. Numbers like FCR and mortality are calculated live from your Daily Log entries — check that deaths and feed were logged for every day.' },
@@ -26,7 +26,7 @@ export default function HelpScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Help</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.md }}>
+      <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.md, paddingBottom: layout.tabBarClearance }}>
         {FAQ.map((f) => (
           <Card key={f.q}>
             <Text variant="bodyMed">{f.q}</Text>

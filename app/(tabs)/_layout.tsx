@@ -12,9 +12,12 @@ export default function TabsLayout() {
       <Tabs.Screen name="flocks" />
       <Tabs.Screen name="log" />
       <Tabs.Screen name="money" />
-      <Tabs.Screen name="more" />
-      {/* Reached from the Home community banner, not a bottom-bar slot — the
-          bar only has room for 5 without crowding the center Log button. */}
+      <Tabs.Screen name="reports" />
+
+      {/* Off-bar destinations. The bar holds the five things a farmer does
+          daily; settings and the community hub are reached from in-page
+          affordances so they don't compete with them for a permanent slot. */}
+      <Tabs.Screen name="more" options={{ href: null }} />
       <Tabs.Screen name="hub" options={{ href: null }} />
     </Tabs>
   );

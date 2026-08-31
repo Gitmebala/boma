@@ -13,7 +13,7 @@ import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 interface Member { id: string; invited_phone: string | null; role: string; can_view_money: boolean; status: string; profiles: { full_name: string | null; phone: string | null } | null; }
 
@@ -57,7 +57,7 @@ export default function TeamScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Farm team</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
         <Card style={{ marginBottom: space.xl }}>
           <Text variant="h3" style={{ marginBottom: space.md }}>Invite a worker</Text>
           <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'flex-start' }}>

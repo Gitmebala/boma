@@ -14,7 +14,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 const FEED_TYPES = ['Starter', 'Grower', 'Finisher', 'Other'];
 
@@ -61,7 +61,7 @@ export default function FeedStockScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Feed stock</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
         {stockByType.length > 0 && (
           <View style={{ flexDirection: 'row', gap: space.md, marginBottom: space.xl, flexWrap: 'wrap' }}>
             {stockByType.map(([type, bags]) => (

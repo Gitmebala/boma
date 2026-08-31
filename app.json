@@ -32,9 +32,16 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/boma-logo.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F2F2E3",
+          "dark": {
+            "image": "./assets/images/boma-logo.png",
+            "imageWidth": 220,
+            "resizeMode": "contain",
+            "backgroundColor": "#F2F2E3"
+          }
         }
       ],
       "expo-secure-store",

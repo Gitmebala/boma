@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { formatKES, daysBetween } from '@/lib/format';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 export default function EquipmentScreen() {
   const { colors } = useTheme();
@@ -53,7 +53,7 @@ export default function EquipmentScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Equipment</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
         <Card style={{ marginBottom: space.xl }}>
           <Text variant="h3" style={{ marginBottom: space.md }}>Add equipment</Text>
           <Field label="Item" value={item} onChangeText={setItem} placeholder="e.g. Brooder, water tank" />

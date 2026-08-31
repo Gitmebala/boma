@@ -11,7 +11,7 @@ import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 const CATEGORIES = ['all', 'brooding', 'feeding', 'biosecurity', 'disease', 'business'] as const;
 const CAT_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -54,7 +54,7 @@ export default function TrainingListScreen() {
         {CATEGORIES.map((c) => <Chip key={c} label={c} selected={cat === c} onPress={() => setCat(c)} />)}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         {visible.map((t, i) => (
           <FadeInView key={t.id} index={i} style={{ marginBottom: space.md }}>
             <AnimatedPressable onPress={() => router.push(`/(tabs)/hub/training/${t.id}` as any)} haptic="selection" scaleTo={0.99}>
@@ -77,7 +77,6 @@ export default function TrainingListScreen() {
             </AnimatedPressable>
           </FadeInView>
         ))}
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

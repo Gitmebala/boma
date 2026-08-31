@@ -15,7 +15,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase, FlockSummary } from '@/lib/supabase';
 import { formatPct, formatKES, daysBetween } from '@/lib/format';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 const FILTERS = ['All', 'Active', 'Selling', 'Sold Out'] as const;
 
@@ -89,7 +89,6 @@ export default function FlocksListScreen() {
             </FadeInView>
           ))
         )}
-        <View style={{ height: 140 }} />
       </ScrollView>
 
       <NewFlockSheet ref={sheetRef} onCreated={load} />
@@ -111,7 +110,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
   addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexGrow: 0, marginBottom: space.lg },
-  list: { paddingHorizontal: space.xl, gap: space.md },
+  list: { paddingHorizontal: space.xl, gap: space.md, paddingBottom: layout.tabBarClearance },
   card: {},
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   statusDot: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },

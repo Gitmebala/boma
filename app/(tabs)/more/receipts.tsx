@@ -11,7 +11,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { formatShortDate } from '@/lib/format';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 export default function ReceiptsScreen() {
   const { colors } = useTheme();
@@ -33,7 +33,7 @@ export default function ReceiptsScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Receipts</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }}>
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }}>
         {rows.length === 0 ? (
           <EmptyState
             icon="document-text-outline"

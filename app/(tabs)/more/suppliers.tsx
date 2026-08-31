@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase, Supplier } from '@/lib/supabase';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 export default function SuppliersScreen() {
   const { colors } = useTheme();
@@ -46,7 +46,7 @@ export default function SuppliersScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Suppliers</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: space.sm, marginBottom: space.xl }}>
           <View style={{ flex: 1 }}>
             <Field label="Add supplier" value={name} onChangeText={setName} placeholder="e.g. Kienyeji Feeds Ltd" />

@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useTheme } from '@/lib/ThemeContext';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 export default function PlanScreen() {
   const { colors } = useTheme();
@@ -19,7 +19,7 @@ export default function PlanScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Your plan</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.md }}>
+      <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.md, paddingBottom: layout.tabBarClearance }}>
         <Card style={{ borderColor: colors.accent, borderWidth: 1.5 }}>
           <Text variant="label" tone="accent">CURRENT PLAN</Text>
           <Text variant="h1" style={{ marginTop: space.sm }}>Free</Text>

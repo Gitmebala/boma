@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { daysBetween } from '@/lib/format';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 interface Report { id: string; county: string | null; disease: string; severity: string; reported_at: string }
 
@@ -51,7 +51,7 @@ export default function DiseaseRadarScreen() {
         <Text variant="h2" style={{ marginLeft: space.md }}>Disease radar</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         <View style={[
           styles.banner,
           { backgroundColor: nearby.length > 0 ? colors.warningSoft : colors.successSoft },
@@ -138,7 +138,6 @@ export default function DiseaseRadarScreen() {
             Reports are anonymous — your farm name is never shown to other farmers. Newcastle disease can wipe out a flock in about three days, which is why a neighbour's early warning matters.
           </Text>
         </Card>
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

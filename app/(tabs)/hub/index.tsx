@@ -10,7 +10,7 @@ import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 export default function HubScreen() {
   const { colors } = useTheme();
@@ -135,7 +135,6 @@ export default function HubScreen() {
           />
         </View>
 
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -161,7 +160,7 @@ function HubRow({ icon, title, subtitle, onPress }: { icon: keyof typeof Ionicon
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  scroll: { paddingHorizontal: space.xl, paddingTop: space.sm },
+  scroll: { paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: layout.tabBarClearance },
   heroCard: { flexDirection: 'row', alignItems: 'center', padding: space.xl, borderRadius: radius.xl },
   heroIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

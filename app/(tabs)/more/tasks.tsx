@@ -16,7 +16,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { daysBetween, formatShortDate } from '@/lib/format';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 const CATEGORIES = ['biosecurity', 'cleaning', 'maintenance', 'vaccination', 'other'] as const;
 const CATEGORY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -122,7 +122,7 @@ export default function TasksScreen() {
         </FadeInView>
       )}
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         {tasks === null ? null : visible.length === 0 && !adding ? (
           <EmptyState icon="checkmark-done-outline" title="Nothing outstanding" body="Biosecurity and cleaning tasks for your flocks show up here automatically." />
         ) : (
@@ -135,7 +135,6 @@ export default function TasksScreen() {
         <AnimatedPressable onPress={() => setShowDone((v) => !v)} haptic="selection" style={{ alignSelf: 'center', marginBottom: space.xl }}>
           <Text variant="caption" tone="accent">{showDone ? 'Hide completed' : 'Show completed'}</Text>
         </AnimatedPressable>
-        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );

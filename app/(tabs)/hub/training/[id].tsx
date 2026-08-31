@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useTheme } from '@/lib/ThemeContext';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 /** Minimal markdown renderer — headings, bold, bullets. Enough for lesson text. */
 function LessonBody({ md }: { md: string }) {
@@ -62,7 +62,7 @@ export default function LessonScreen() {
         </AnimatedPressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         {!item ? (
           <View style={{ gap: space.md }}>
             <Skeleton width="80%" height={32} />
@@ -100,7 +100,6 @@ export default function LessonScreen() {
             </Card>
           </FadeInView>
         )}
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

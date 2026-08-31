@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/lib/ThemeContext';
 import { supabase, Flock, FlockSummary, Vaccination, DailyLog, Expense } from '@/lib/supabase';
 import { formatPct, formatKES, daysBetween, formatShortDate } from '@/lib/format';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 const TABS = ['Overview', 'Growth', 'Vaccines', 'Costs'] as const;
 
@@ -215,7 +215,6 @@ export default function FlockDetailScreen() {
             ))}
           </FadeInView>
         )}
-        <View style={{ height: 140 }} />
       </ScrollView>
 
       <QuickLogSheet ref={logSheetRef} flockId={flock.id} onSaved={load} />
@@ -298,7 +297,7 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', paddingHorizontal: space.xl, gap: space.xl, borderBottomWidth: 1, borderBottomColor: '#00000000' },
   tabItem: { paddingBottom: space.md, alignItems: 'center' },
   tabIndicator: { height: 2, width: '100%', borderRadius: 1, marginTop: 8, position: 'absolute', bottom: 0 },
-  body: { padding: space.xl },
+  body: { padding: space.xl, paddingBottom: layout.tabBarClearance },
   row2: { flexDirection: 'row', gap: space.md },
   birdRow: { flexDirection: 'row', marginTop: space.md },
   logRow: { flexDirection: 'row', alignItems: 'center' },

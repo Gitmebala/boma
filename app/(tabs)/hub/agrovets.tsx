@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 interface Agrovet {
   id: string; name: string; contact_person: string | null; phone: string | null;
@@ -44,7 +44,7 @@ export default function AgrovetsScreen() {
         <Text variant="h2" style={{ marginLeft: space.md }}>Verified agrovets</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         <Card style={{ backgroundColor: colors.accentSoft, borderColor: 'transparent', marginBottom: space.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <Ionicons name="shield-checkmark" size={18} color={colors.accent} />
@@ -125,7 +125,6 @@ export default function AgrovetsScreen() {
             </Card>
           </FadeInView>
         ))}
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );

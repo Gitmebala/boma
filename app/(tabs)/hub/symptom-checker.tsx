@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 interface Symptom { id: string; code: string; label_en: string; label_sw: string | null; body_system: string | null }
 interface Result {
@@ -87,7 +87,7 @@ export default function SymptomCheckerScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         {!results && (
           <>
             <Text variant="body" tone="secondary" style={{ marginBottom: space.xl }}>
@@ -121,7 +121,6 @@ export default function SymptomCheckerScreen() {
                 );
               })}
             </View>
-            <View style={{ height: 120 }} />
           </>
         )}
 
@@ -211,7 +210,6 @@ export default function SymptomCheckerScreen() {
                   : 'Remember: this is a first filter, not a diagnosis. Only a vet can confirm what is actually wrong.'}
               </Text>
             </Card>
-            <View style={{ height: 120 }} />
           </>
         )}
       </ScrollView>

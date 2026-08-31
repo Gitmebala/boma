@@ -201,4 +201,31 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 export const PAYMENT_METHODS = ['Cash', 'M-Pesa', 'Bank Transfer', 'Cheque', 'Credit (unpaid)', 'Other'];
+
+/** Methods a customer can actually hand you money by — "Credit (unpaid)" is
+ *  meaningless for a payment that has already been received. */
+export const RECEIPT_METHODS = ['M-Pesa', 'Cash', 'Bank Transfer', 'Cheque', 'Other'];
+
+export type MoneyTxType =
+  | 'own_money_added'
+  | 'loan_received'
+  | 'other_in'
+  | 'household_drawing'
+  | 'loan_repayment'
+  | 'other_out';
+
+/**
+ * Cash movements that aren't a sale or a farm expense. Without these the
+ * cash-on-hand figure can never reconcile: money you put in yourself, a loan,
+ * or cash taken out for the household all move the till without touching a
+ * single bird.
+ */
+export const MONEY_TX: { type: MoneyTxType; label: string; hint: string; direction: 'in' | 'out' }[] = [
+  { type: 'own_money_added', label: 'Money I put in', hint: 'Your own cash into the farm', direction: 'in' },
+  { type: 'loan_received', label: 'Loan received', hint: 'From a bank, sacco or person', direction: 'in' },
+  { type: 'other_in', label: 'Other money in', hint: 'Anything else received', direction: 'in' },
+  { type: 'household_drawing', label: 'Taken for household', hint: 'Farm cash used at home', direction: 'out' },
+  { type: 'loan_repayment', label: 'Loan repayment', hint: 'Money paid back', direction: 'out' },
+  { type: 'other_out', label: 'Other money out', hint: 'Anything else paid out', direction: 'out' },
+];
 export const CUSTOMER_TYPES = ['Individual', 'Hotel/Restaurant', 'Butchery', 'Retailer', 'Broker'];

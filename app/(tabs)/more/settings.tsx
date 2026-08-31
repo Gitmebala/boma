@@ -11,7 +11,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
-import { space } from '@/lib/theme';
+import { space, layout } from '@/lib/theme';
 
 export default function SettingsScreen() {
   const { colors } = useTheme();
@@ -44,7 +44,7 @@ export default function SettingsScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Farm settings</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
         <Field label="Farm name" value={name} onChangeText={setName} />
         <Field label="County" value={county} onChangeText={setCounty} />
         <Field label="Standard price per bird" value={price} onChangeText={setPrice} keyboardType="decimal-pad" suffix="KES" />

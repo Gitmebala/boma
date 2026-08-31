@@ -16,7 +16,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { formatKES, daysBetween } from '@/lib/format';
-import { space, radius } from '@/lib/theme';
+import { space, radius, layout } from '@/lib/theme';
 
 interface Deal {
   id: string; kind: 'buy' | 'sell'; title: string; description: string | null;
@@ -70,7 +70,7 @@ export default function GroupDealsScreen() {
         <Text variant="h2" style={{ marginLeft: space.md }}>Group deals</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
         <Card style={{ backgroundColor: colors.accentSoft, borderColor: 'transparent', marginBottom: space.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <Ionicons name="people" size={18} color={colors.accent} />
@@ -155,7 +155,6 @@ export default function GroupDealsScreen() {
             </FadeInView>
           );
         })}
-        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );
