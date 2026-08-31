@@ -157,31 +157,38 @@ function ActionRow({
 // Daily log
 // ---------------------------------------------------------------------------
 const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'weigh' }>(({ mode }, ref) => {
+  const { colors } = useTheme();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [deaths, setDeaths] = useState('');
   const [feed, setFeed] = useState('');
   const [weight, setWeight] = useState('');
+  // A farmer often opens the app the morning after — v1 could only record
+  // "today", which silently mis-dated every one of those entries.
+  const [agoDays, setAgoDays] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const titles = { deaths: 'Log deaths', feed: 'Log feed used', weigh: 'Log a weigh-in' };
   const subtitles = {
-    deaths: 'Recorded against today. Leave it at zero if none died.',
-    feed: 'Total eaten by this batch today.',
+    deaths: 'Leave it at zero if none died.',
+    feed: 'Total eaten by this batch that day.',
     weigh: 'Weigh a handful of birds and enter the average.',
   };
 
   const save = async () => {
     if (!flockId) return;
     setSaving(true);
-    await supabase.from('daily_logs').insert({
+    setError(null);
+    const { error: err } = await supabase.from('daily_logs').insert({
       flock_id: flockId,
-      log_date: new Date().toISOString().slice(0, 10),
+      log_date: new Date(Date.now() - agoDays * 86400000).toISOString().slice(0, 10),
       birds_died: mode === 'deaths' ? Number(deaths) || 0 : 0,
       feed_used_kg: mode === 'feed' && feed ? Number(feed) : null,
       avg_weight_sample_kg: mode === 'weigh' && weight ? Number(weight) : null,
     });
     setSaving(false);
-    setDeaths(''); setFeed(''); setWeight('');
+    if (err) { setError('Not saved — check your signal and try again.'); return; }
+    setDeaths(''); setFeed(''); setWeight(''); setAgoDays(0);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     (ref as any)?.current?.close();
   };
@@ -191,10 +198,25 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       ref={ref}
       title={titles[mode]}
       subtitle={subtitles[mode]}
-      snapPoints={['62%']}
-      footer={<Button label="Save entry" onPress={save} loading={saving} disabled={!flockId} size="lg" />}>
+      snapPoints={['68%']}
+      footer={
+        <View>
+          {error ? (
+            <Text variant="caption" tone="danger" style={{ marginBottom: space.sm }}>{error}</Text>
+          ) : null}
+          <Button label="Save entry" onPress={save} loading={saving} disabled={!flockId} size="lg" />
+        </View>
+      }>
       <FlockPicker value={flockId} onChange={setFlockId} />
-      {mode === 'deaths' && <Field label="Birds died today" value={deaths} onChangeText={setDeaths} keyboardType="number-pad" />}
+
+      <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>WHICH DAY?</Text>
+      <View style={[styles.chipWrap, { marginBottom: space.lg }]}>
+        {(['Today', 'Yesterday'] as const).map((label, i) => (
+          <Chip key={label} label={label} selected={agoDays === i} onPress={() => setAgoDays(i)} />
+        ))}
+      </View>
+
+      {mode === 'deaths' && <Field label="Birds died" value={deaths} onChangeText={setDeaths} keyboardType="number-pad" />}
       {mode === 'feed' && <Field label="Feed used (kg)" value={feed} onChangeText={setFeed} keyboardType="decimal-pad" suffix="kg" />}
       {mode === 'weigh' && <Field label="Average sample weight (kg)" value={weight} onChangeText={setWeight} keyboardType="decimal-pad" suffix="kg" />}
     </Sheet>

@@ -69,23 +69,24 @@ const light = {
 };
 
 const dark = {
-  // Measured steps: #0A0D0B -> #141915 -> #1C231E gives clear card edges
-  // without the washed grey that plagues most "dark green" palettes.
-  bg: '#0A0D0B',
-  surface: '#141915',
-  surfaceSunken: '#0F140F',
-  surfaceRaised: '#1C231E',
-  surfaceContainer: '#222A24',
-  bgElevated: '#171E19',
+  // Deliberately NEUTRAL near-black — no green cast in the grounds. Tinting
+  // every surface green made dark mode read as mud; the brand now lives only
+  // in the accent, the way ink lives on black paper.
+  bg: '#0A0A0A',
+  surface: '#161616',
+  surfaceSunken: '#101010',
+  surfaceRaised: '#1E1E1E',
+  surfaceContainer: '#242424',
+  bgElevated: '#1A1A1A',
 
-  border: '#28312A',
-  borderStrong: '#3A453C',
-  borderFaint: '#1E251F',
+  border: '#2A2A2A',
+  borderStrong: '#3D3D3D',
+  borderFaint: '#1F1F1F',
 
-  textPrimary: '#EEF3EC',
-  textSecondary: '#B4BEB3',
-  textTertiary: '#828C81',
-  textQuiet: '#5F685E',
+  textPrimary: '#F0EFEA',
+  textSecondary: '#B8B6AE',
+  textTertiary: '#87857D',
+  textQuiet: '#5E5C55',
 
   accent: '#7FD3A3',
   accentText: '#06180F',
@@ -105,9 +106,9 @@ const dark = {
   infoSoft: '#122029',
 
   overlay: 'rgba(0,0,0,0.66)',
-  tabBarBg: 'rgba(20,25,21,0.94)',
-  scrim: 'rgba(10,13,11,0)',
-  scrimSolid: '#0A0D0B',
+  tabBarBg: 'rgba(22,22,22,0.94)',
+  scrim: 'rgba(10,10,10,0)',
+  scrimSolid: '#0A0A0A',
   shadow: '#000000',
 };
 

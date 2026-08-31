@@ -56,3 +56,62 @@ export async function registerForPushNotifications(userId: string, farmId: strin
 
   return { ok: true };
 }
+
+/**
+ * Local vaccine reminders.
+ *
+ * Push tokens were registered but nothing anywhere ever sent or scheduled a
+ * notification — so "vaccine due" only existed if the farmer happened to
+ * open the app that day. These are scheduled ON the device (no server, no
+ * SMS budget): every undone vaccination in the next 14 days gets a 7am
+ * reminder. Re-run on each Home load; we clear our own before rescheduling
+ * so they never duplicate.
+ */
+export async function scheduleVaccineReminders(farmId: string): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const { data: flocks } = await supabase
+      .from('flocks')
+      .select('id, flock_code')
+      .eq('farm_id', farmId)
+      .not('status', 'in', '("Closed","Sold Out")');
+    const ids = (flocks ?? []).map((f) => f.id);
+    if (!ids.length) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const horizon = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const { data: vax } = await supabase
+      .from('vaccinations')
+      .select('id, vaccine_name, due_date, flock_id')
+      .in('flock_id', ids)
+      .eq('done', false)
+      .gte('due_date', today)
+      .lte('due_date', horizon);
+
+    // Remove only reminders we own — never someone else's scheduled items.
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      existing
+        .filter((n) => n.content.data?.kind === 'vaccine')
+        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+    );
+
+    const codeFor = new Map((flocks ?? []).map((f) => [f.id, f.flock_code]));
+    for (const v of vax ?? []) {
+      const fireAt = new Date(`${v.due_date}T07:00:00`);
+      if (fireAt.getTime() <= Date.now()) continue;
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${v.vaccine_name} due today`,
+          body: `${codeFor.get(v.flock_id) ?? 'Your batch'}: give it this morning, then mark it done in Boma.`,
+          data: { kind: 'vaccine', vaccinationId: v.id },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
+      });
+    }
+  } catch {
+    // Reminders are best-effort — a scheduling failure must never break Home.
+  }
+}

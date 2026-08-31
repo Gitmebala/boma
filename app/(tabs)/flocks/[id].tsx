@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { View, ScrollView, StyleSheet, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -148,6 +148,42 @@ export default function FlockDetailScreen() {
                 </Text>
               )}
             </Card>
+
+            {/* A batch could never leave 'Active' from the UI — sold-out
+                flocks haunted the Home screen forever. */}
+            {(flock.status === 'Active' || flock.status === 'Selling') && (
+              <Button
+                label={summary.birds_remaining === 0 ? 'Close this batch' : 'Close batch early'}
+                variant="secondary"
+                onPress={() => {
+                  const done = summary.birds_remaining === 0;
+                  Alert.alert(
+                    done ? 'Close this batch?' : `${summary.birds_remaining} birds still recorded`,
+                    done
+                      ? 'It moves to Sold Out and stops appearing as active. Its numbers stay in Reports.'
+                      : 'Closing marks the batch finished even though birds remain on record. Log their deaths or sales first if you can.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: done ? 'Close batch' : 'Close anyway',
+                        style: done ? 'default' : 'destructive',
+                        onPress: async () => {
+                          const { error } = await supabase
+                            .from('flocks')
+                            .update({ status: done ? 'Sold Out' : 'Closed' })
+                            .eq('id', id);
+                          if (!error) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            load();
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+                style={{ marginTop: space.md }}
+              />
+            )}
           </FadeInView>
         )}
 

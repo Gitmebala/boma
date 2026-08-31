@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { supabase, FlockSummary, Expense } from '@/lib/supabase';
 import { formatCompactKES, formatKES, formatPct } from '@/lib/format';
 import { buildAlerts, BomaAlert } from '@/lib/alerts';
-import { registerForPushNotifications } from '@/lib/notifications';
+import { registerForPushNotifications, scheduleVaccineReminders } from '@/lib/notifications';
 import { projectFlock, farmPosition, feedCostPerKg, dailySeries, FlockProjection } from '@/lib/insights';
 import { space, radius, elevation } from '@/lib/theme';
 
@@ -60,6 +60,8 @@ export default function HomeScreen() {
     setDeathSeries(dailySeries((logs as any[]) ?? [], 'birds_died', 14));
     setOwed(((bal as any[]) ?? []).reduce((s, b) => s + Number(b.balance || 0), 0));
     setAlerts(alertList);
+    // Fire-and-forget: puts tomorrow's vaccine reminders on the lock screen.
+    scheduleVaccineReminders(farm.id);
   }, [farm?.id, canViewMoney]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));

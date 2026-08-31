@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, StyleSheet, Linking, Modal } from 'react-native';
+import { View, StyleSheet, Linking, Modal, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -233,6 +233,29 @@ export default function MoneyScreen() {
                 const thumb = e.receipt_url ? receiptUrls[e.receipt_url] : null;
                 return (
                   <FadeInView key={e.id} index={i} style={{ marginTop: space.sm }}>
+                    <AnimatedPressable
+                      onPress={() => {}}
+                      onLongPress={() => {
+                        // Mistakes must be correctable — v1 made every entry
+                        // permanent. Long-press keeps delete off the happy path.
+                        Alert.alert(
+                          'Delete this expense?',
+                          `${e.category}${e.item ? ` · ${e.item}` : ''} — ${formatKES(e.total_cost)}. This removes it from your costs and profit.`,
+                          [
+                            { text: 'Keep it', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: async () => {
+                                const { error } = await supabase.from('expenses').delete().eq('id', e.id);
+                                if (!error) load();
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                      haptic="medium"
+                      scaleTo={0.99}>
                     <Card>
                       <View style={styles.debtHead}>
                         {thumb ? (
@@ -253,6 +276,7 @@ export default function MoneyScreen() {
                         <Text variant="bodyMed">{formatKES(e.total_cost)}</Text>
                       </View>
                     </Card>
+                    </AnimatedPressable>
                   </FadeInView>
                 );
               })

@@ -15,10 +15,8 @@
     "android": {
       "package": "com.boma.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F8FAF6",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#F2F2E3",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },

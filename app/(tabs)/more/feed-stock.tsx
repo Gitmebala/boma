@@ -28,10 +28,25 @@ export default function FeedStockScreen() {
   const [costPerBag, setCostPerBag] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [kgLogged, setKgLogged] = useState(0);
+
   const load = useCallback(async () => {
     if (!farm) return;
-    const { data } = await supabase.from('feed_stock').select('*').eq('farm_id', farm.id).order('tx_date', { ascending: false });
+    const [{ data }, { data: flocks }] = await Promise.all([
+      supabase.from('feed_stock').select('*').eq('farm_id', farm.id).order('tx_date', { ascending: false }),
+      supabase.from('flocks').select('id').eq('farm_id', farm.id),
+    ]);
     setRows(data ?? []);
+
+    // The store above is counted in bags; daily logs record kg eaten. They
+    // were two unconnected worlds, so "in store" never matched reality. We
+    // don't silently convert (bag weights vary) — we show the reconciliation
+    // so the farmer can see whether the two stories agree.
+    const ids = (flocks ?? []).map((f: any) => f.id);
+    if (ids.length) {
+      const { data: logs } = await supabase.from('daily_logs').select('feed_used_kg').in('flock_id', ids);
+      setKgLogged((logs ?? []).reduce((s: number, l: any) => s + Number(l.feed_used_kg ?? 0), 0));
+    }
   }, [farm?.id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -72,6 +87,16 @@ export default function FeedStockScreen() {
               </Card>
             ))}
           </View>
+        )}
+
+        {kgLogged > 0 && (
+          <Card sunken style={{ marginBottom: space.xl }}>
+            <Text variant="caption" tone="secondary">
+              Your daily logs say the birds have eaten <Text variant="bodyMed">{Math.round(kgLogged)} kg</Text> so
+              far — about {Math.ceil(kgLogged / 50)} bags of 50 kg. If the store above shows more than what's
+              physically there, log the used bags out here.
+            </Text>
+          </Card>
         )}
 
         <Card style={{ marginBottom: space.xl }}>
