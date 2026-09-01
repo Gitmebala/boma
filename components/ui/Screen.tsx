@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text } from './Text';
 import { AnimatedPressable } from './AnimatedPressable';
+import { SyncStatusBanner } from './SyncStatusBanner';
 import { useTheme, useTabBarClearance } from '@/lib/ThemeContext';
 import { space, layout } from '@/lib/theme';
 
@@ -21,13 +22,18 @@ interface ScreenProps {
   children: React.ReactNode;
   /** Set false on stacked screens that sit above the tab bar (e.g. modals). */
   tabBar?: boolean;
+  /** Set false only where the sync banner would fight another top element
+   *  (rare) — on by default so no screen has to remember to add it, the
+   *  same reasoning as the tab-bar clearance above. */
+  syncStatus?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Screen({ children, style }: ScreenProps) {
+export function Screen({ children, syncStatus = true, style }: ScreenProps) {
   const { colors } = useTheme();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }, style]} edges={['top']}>
+      {syncStatus ? <SyncStatusBanner /> : null}
       {children}
     </SafeAreaView>
   );

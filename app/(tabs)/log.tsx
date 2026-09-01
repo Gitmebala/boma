@@ -19,6 +19,7 @@ import { ReceiptAttach } from '@/components/receipts/ReceiptAttach';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { useAuth } from '@/lib/AuthContext';
+import { useSync } from '@/lib/sync';
 import { uploadReceipt, ReceiptAsset } from '@/lib/receipts';
 import { supabase, EXPENSE_CATEGORIES, PAYMENT_METHODS, FlockSummary } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
@@ -162,6 +163,7 @@ function ActionRow({
 // ---------------------------------------------------------------------------
 const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'weigh' | 'water' }>(({ mode }, ref) => {
   const { colors } = useTheme();
+  const { enqueueWrite } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [deaths, setDeaths] = useState('');
   const [feed, setFeed] = useState('');
@@ -171,7 +173,6 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
   // "today", which silently mis-dated every one of those entries.
   const [agoDays, setAgoDays] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const titles = { deaths: 'Log deaths', feed: 'Log feed used', weigh: 'Log a weigh-in', water: 'Log water drunk' };
   const subtitles = {
@@ -184,8 +185,11 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
   const save = async () => {
     if (!flockId) return;
     setSaving(true);
-    setError(null);
-    const { error: err } = await supabase.from('daily_logs').insert({
+    // enqueueWrite durably saves to the phone before returning — that local
+    // save, not a server round trip, is the "landed" moment. Whether it has
+    // reached Supabase yet is a separate, honestly-shown fact (the banner
+    // at the top of the screen), not something this sheet blocks on.
+    await enqueueWrite('daily_logs', {
       flock_id: flockId,
       log_date: new Date(Date.now() - agoDays * 86400000).toISOString().slice(0, 10),
       birds_died: mode === 'deaths' ? Number(deaths) || 0 : 0,
@@ -194,7 +198,6 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       water_litres: mode === 'water' && water ? Number(water) : null,
     });
     setSaving(false);
-    if (err) { setError('Not saved — check your signal and try again.'); return; }
     setDeaths(''); setFeed(''); setWeight(''); setWater(''); setAgoDays(0);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     (ref as any)?.current?.close();
@@ -206,14 +209,7 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       title={titles[mode]}
       subtitle={subtitles[mode]}
       snapPoints={['68%']}
-      footer={
-        <View>
-          {error ? (
-            <Text variant="caption" tone="danger" style={{ marginBottom: space.sm }}>{error}</Text>
-          ) : null}
-          <Button label="Save entry" onPress={save} loading={saving} disabled={!flockId} size="lg" />
-        </View>
-      }>
+      footer={<Button label="Save entry" onPress={save} loading={saving} disabled={!flockId} size="lg" />}>
       <FlockPicker value={flockId} onChange={setFlockId} />
 
       <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>WHICH DAY?</Text>
@@ -238,6 +234,7 @@ DailySheet.displayName = 'DailySheet';
 const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const { farm } = useFarm();
   const { session } = useAuth();
+  const { enqueueWrite, patchQueuedIfPending } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [item, setItem] = useState('');
@@ -254,37 +251,43 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
     if (!farm || !cost) return;
     setSaving(true);
 
-    const { data: expense, error } = await supabase
-      .from('expenses')
-      .insert({
-        farm_id: farm.id,
-        flock_id: flockId,
-        expense_date: new Date().toISOString().slice(0, 10),
-        category,
-        item: item || null,
-        quantity: qty ? Number(qty) : null,
-        cost_per_unit: Number(cost),
-        supplier_id: supplier?.id ?? null,
-        payment_method: method,
-      })
-      .select('id')
-      .single();
+    // enqueueWrite generates the row's id and returns it immediately — the
+    // expense doesn't need to have reached Supabase yet for the receipt
+    // below to reference the right row once it does.
+    const expenseId = await enqueueWrite('expenses', {
+      farm_id: farm.id,
+      flock_id: flockId,
+      expense_date: new Date().toISOString().slice(0, 10),
+      category,
+      item: item || null,
+      quantity: qty ? Number(qty) : null,
+      cost_per_unit: Number(cost),
+      supplier_id: supplier?.id ?? null,
+      payment_method: method,
+    });
 
-    // Upload the photo only once the expense exists, so the receipt can point
-    // at a real row. A failed upload must not lose the expense itself — the
-    // cost is the important record, the photo is the evidence.
-    if (!error && expense && receipt) {
+    // A receipt photo is a genuinely online operation (Supabase Storage) in
+    // a way an insert isn't, so it isn't queued the same way — if there's no
+    // signal right now, skip it rather than block or silently lose it, and
+    // say so plainly instead of pretending it uploaded.
+    if (receipt) {
       const uploaded = await uploadReceipt({
         farmId: farm.id,
         userId: session?.user?.id,
         asset: receipt,
         relatedTable: 'expenses',
-        relatedId: expense.id,
+        relatedId: expenseId,
         description: `${category}${item ? ` · ${item}` : ''}`,
         amount: total,
       });
       if (uploaded.ok) {
-        await supabase.from('expenses').update({ receipt_url: uploaded.path }).eq('id', expense.id);
+        // The expense may not have reached the server yet — patch the
+        // queued payload if so, otherwise it's already synced and a direct
+        // update is correct.
+        const patchedLocally = await patchQueuedIfPending(expenseId, { receipt_url: uploaded.path });
+        if (!patchedLocally) {
+          await supabase.from('expenses').update({ receipt_url: uploaded.path }).eq('id', expenseId);
+        }
       }
     }
 
@@ -348,6 +351,7 @@ ExpenseSheet.displayName = 'ExpenseSheet';
 const SaleSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const { farm } = useFarm();
   const { colors } = useTheme();
+  const { enqueueWrite } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<{ id: string; name: string } | null>(null);
   const [basis, setBasis] = useState<'Per Bird' | 'Per Kg'>('Per Bird');
@@ -389,7 +393,7 @@ const SaleSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const save = async () => {
     if (!farm || !flockId || !customer || !birds) return;
     setSaving(true);
-    await supabase.from('sales').insert({
+    await enqueueWrite('sales', {
       farm_id: farm.id,
       flock_id: flockId,
       customer_id: customer.id,
