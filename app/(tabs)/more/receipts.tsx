@@ -6,7 +6,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { Text } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
-import { Screen, ScreenScroll, ScreenHeader } from '@/components/ui/Screen';
+import { Screen, ScreenHeader } from '@/components/ui/Screen';
+import { ScreenList, capStaggerIndex } from '@/components/ui/VirtualList';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -128,64 +129,78 @@ export default function ReceiptsScreen() {
         }
       />
 
-      <ScreenScroll refreshing={refreshing} onRefresh={onRefresh}>
-        {rows === null ? (
-          <View style={styles.grid}>
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} width={tileSize as any} height={tileSize} />
-            ))}
-          </View>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon="camera-outline"
-            title="No receipts yet"
-            body="Photograph a receipt and it's stored here for good — useful when a buyer disputes a price, or a lender asks what you spent."
-            actionLabel="Add a receipt"
-            onAction={chooseSource}
-          />
-        ) : (
-          <View style={styles.grid}>
-            {rows.map((r, i) => (
-              <FadeInView key={r.id} index={i}>
-                <AnimatedPressable
-                  onPress={() => setViewing(r)}
-                  haptic="selection"
-                  scaleTo={0.97}
-                  accessibilityLabel={r.description ?? 'Receipt'}>
-                  <View
-                    style={[
-                      styles.tile,
-                      { width: tileSize, height: tileSize, backgroundColor: colors.surfaceSunken, borderColor: colors.border },
-                    ]}>
-                    {urls[r.file_url] ? (
-                      <Image
-                        source={{ uri: urls[r.file_url] }}
-                        style={StyleSheet.absoluteFill}
-                        contentFit="cover"
-                        transition={180}
-                      />
-                    ) : (
-                      <Ionicons name="document-text-outline" size={26} color={colors.textQuiet} />
-                    )}
+      {rows === null ? (
+        <View style={[styles.grid, { paddingHorizontal: space.gutter }]}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} width={tileSize as any} height={tileSize} />
+          ))}
+        </View>
+      ) : (
+        <ScreenList
+          data={rows}
+          numColumns={COLUMNS}
+          keyExtractor={(r: ReceiptRow) => r.id}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          columnWrapperStyle={{ gap: GRID_GAP }}
+          contentContainerStyle={{ gap: GRID_GAP }}
+          // Every tile is the same fixed square, so the row's exact pixel
+          // position is known up front — the one case in this app where
+          // getItemLayout is a clean win rather than an approximation.
+          getItemLayout={(_, index) => {
+            const row = Math.floor(index / COLUMNS);
+            const length = tileSize + GRID_GAP;
+            return { length, offset: length * row, index };
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="camera-outline"
+              title="No receipts yet"
+              body="Photograph a receipt and it's stored here for good — useful when a buyer disputes a price, or a lender asks what you spent."
+              actionLabel="Add a receipt"
+              onAction={chooseSource}
+            />
+          }
+          renderItem={({ item: r, index }: { item: ReceiptRow; index: number }) => (
+            <FadeInView index={capStaggerIndex(index)} style={{ flex: 1 / COLUMNS }}>
+              <AnimatedPressable
+                onPress={() => setViewing(r)}
+                haptic="selection"
+                scaleTo={0.97}
+                accessibilityLabel={r.description ?? 'Receipt'}>
+                <View
+                  style={[
+                    styles.tile,
+                    { width: tileSize, height: tileSize, backgroundColor: colors.surfaceSunken, borderColor: colors.border },
+                  ]}>
+                  {urls[r.file_url] ? (
+                    <Image
+                      source={{ uri: urls[r.file_url] }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={180}
+                    />
+                  ) : (
+                    <Ionicons name="document-text-outline" size={26} color={colors.textQuiet} />
+                  )}
 
-                    {/* Caption sits on a scrim so it stays readable over any
-                        photo, light or dark. */}
-                    <View style={[styles.tileFoot, { backgroundColor: colors.overlay }]}>
-                      <Text variant="micro" style={{ color: '#FFFFFF' }} numberOfLines={1}>
-                        {r.description || (r.related_table === 'general' ? 'Receipt' : r.related_table)}
-                      </Text>
-                      <Text variant="micro" style={{ color: 'rgba(255,255,255,0.75)' }} numberOfLines={1}>
-                        {formatShortDate(r.uploaded_at)}
-                        {r.amount ? ` · ${formatKES(r.amount)}` : ''}
-                      </Text>
-                    </View>
+                  {/* Caption sits on a scrim so it stays readable over any
+                      photo, light or dark. */}
+                  <View style={[styles.tileFoot, { backgroundColor: colors.overlay }]}>
+                    <Text variant="micro" style={{ color: '#FFFFFF' }} numberOfLines={1}>
+                      {r.description || (r.related_table === 'general' ? 'Receipt' : r.related_table)}
+                    </Text>
+                    <Text variant="micro" style={{ color: 'rgba(255,255,255,0.75)' }} numberOfLines={1}>
+                      {formatShortDate(r.uploaded_at)}
+                      {r.amount ? ` · ${formatKES(r.amount)}` : ''}
+                    </Text>
                   </View>
-                </AnimatedPressable>
-              </FadeInView>
-            ))}
-          </View>
-        )}
-      </ScreenScroll>
+                </View>
+              </AnimatedPressable>
+            </FadeInView>
+          )}
+        />
+      )}
 
       <ReceiptViewer receipt={viewing} url={viewing ? urls[viewing.file_url] : undefined} onClose={() => setViewing(null)} />
     </Screen>

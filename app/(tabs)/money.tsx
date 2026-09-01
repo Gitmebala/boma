@@ -6,7 +6,8 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
-import { Screen, ScreenScroll } from '@/components/ui/Screen';
+import { Screen } from '@/components/ui/Screen';
+import { ScreenList, capStaggerIndex } from '@/components/ui/VirtualList';
 import { HeroMetric } from '@/components/ui/Metric';
 import { Segmented } from '@/components/ui/Segmented';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -33,6 +34,11 @@ interface CustomerBalance {
   balance: number;
   last_purchase: string | null;
 }
+
+// Each tab's rows are a different shape, so the list is typed loosely here —
+// the single FlatList below is remounted per tab (key={sub}) rather than
+// trying to force one generic item type across all three.
+type Row = any;
 
 export default function MoneyScreen() {
   const { colors } = useTheme();
@@ -116,6 +122,224 @@ export default function MoneyScreen() {
     requestAnimationFrame(() => paymentRef.current?.expand());
   };
 
+  const deleteExpense = (e: any) => {
+    Alert.alert(
+      'Delete this expense?',
+      `${e.category}${e.item ? ` · ${e.item}` : ''} — ${formatKES(e.total_cost)}. This removes it from your costs and profit.`,
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('expenses').delete().eq('id', e.id);
+            if (!error) load();
+          },
+        },
+      ]
+    );
+  };
+
+  // Per-tab data + row renderer. The FlatList itself is generic across all
+  // three (key={sub} remounts it on tab switch, which also resets scroll
+  // position — desirable, since these are unrelated lists).
+  let data: Row[] = [];
+  let renderItem: (args: { item: Row; index: number }) => React.ReactElement;
+  let listHeader: React.ReactElement;
+  let listEmpty: React.ReactElement | null = null;
+
+  if (sub === 'Debt') {
+    data = balances === null ? [] : debtors;
+    listHeader = (
+      <HeroMetric
+        label="Owed to you"
+        value={formatCompactKES(totalOwed)}
+        tone={totalOwed === 0 ? 'success' : overdue.length ? 'danger' : 'warning'}
+        verdict={
+          totalOwed === 0
+            ? 'Every sale is paid up.'
+            : overdue.length
+              ? `${overdue.length} customer${overdue.length === 1 ? ' is' : 's are'} more than 30 days late.`
+              : `Across ${debtors.length} customer${debtors.length === 1 ? '' : 's'}.`
+        }
+        style={{ marginBottom: space.md }}
+      />
+    );
+    listEmpty =
+      balances === null ? (
+        <Skeleton width="100%" height={200} />
+      ) : (
+        <EmptyState icon="happy-outline" title="Nobody owes you" body="Every sale is fully paid up." />
+      );
+    renderItem = ({ item: b, index }) => {
+      const age = b.last_purchase ? daysBetween(b.last_purchase) : null;
+      const status = age === null ? 'neutral' : age > 60 ? 'overdue' : age > 30 ? 'attention' : 'fine';
+      return (
+        <FadeInView index={capStaggerIndex(index)} style={{ marginBottom: space.md }}>
+          <Card>
+            <View style={styles.debtHead}>
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyMed" numberOfLines={1}>{b.name}</Text>
+                <Text variant="caption" tone="tertiary">
+                  {age !== null ? `${age} days since last purchase` : 'No sale yet'}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end', gap: 5 }}>
+                <Text variant="statSm" tone="warning">{formatKES(b.balance)}</Text>
+                <StatusPill status={status as any} />
+              </View>
+            </View>
+
+            {/* The two things you actually do about a debt, right on the
+                row. v1 could only nag — there was no way to record that the
+                money had arrived. */}
+            <View style={styles.debtActions}>
+              <AnimatedPressable
+                onPress={() => openPayment(b)}
+                haptic="light"
+                style={[styles.debtBtn, { backgroundColor: colors.accent }]}>
+                <Ionicons name="cash-outline" size={16} color={colors.accentText} />
+                <Text variant="label" tone="inverse" style={{ marginLeft: 6 }}>Record payment</Text>
+              </AnimatedPressable>
+
+              {b.phone ? (
+                <AnimatedPressable
+                  onPress={() =>
+                    Linking.openURL(
+                      `https://wa.me/${b.phone!.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Hello ${b.name}, kindly remember your balance of KES ${Math.round(b.balance).toLocaleString()}. Thank you.`
+                      )}`
+                    )
+                  }
+                  haptic="light"
+                  accessibilityLabel={`Remind ${b.name} on WhatsApp`}
+                  style={[styles.waBtn, { backgroundColor: colors.successSoft }]}>
+                  <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
+                </AnimatedPressable>
+              ) : null}
+            </View>
+          </Card>
+        </FadeInView>
+      );
+    };
+  } else if (sub === 'Expenses') {
+    data = expenses ?? [];
+    listHeader = (
+      <HeroMetric
+        label="Spent, last 50 entries"
+        value={formatCompactKES((expenses ?? []).reduce((s, e) => s + Number(e.total_cost), 0))}
+        tone="primary"
+        verdict="Reports breaks this down by category and per bird."
+        style={{ marginBottom: space.md }}
+      />
+    );
+    listEmpty =
+      expenses === null ? (
+        <Skeleton width="100%" height={200} />
+      ) : (
+        <EmptyState icon="receipt-outline" title="No expenses logged" body="Log your first cost from the Log tab." />
+      );
+    renderItem = ({ item: e, index }) => {
+      const thumb = e.receipt_url ? receiptUrls[e.receipt_url] : null;
+      return (
+        <FadeInView index={capStaggerIndex(index)} style={{ marginBottom: space.sm }}>
+          <AnimatedPressable onPress={() => {}} onLongPress={() => deleteExpense(e)} haptic="medium" scaleTo={0.99}>
+            <Card>
+              <View style={styles.debtHead}>
+                {thumb ? (
+                  <AnimatedPressable
+                    onPress={() => setViewingReceipt(thumb)}
+                    haptic="selection"
+                    accessibilityLabel="View receipt"
+                    style={{ marginRight: space.md }}>
+                    <Image source={{ uri: thumb }} style={styles.receiptThumb} contentFit="cover" transition={150} />
+                  </AnimatedPressable>
+                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyMed" numberOfLines={1}>
+                    {e.category}{e.item ? ` · ${e.item}` : ''}
+                  </Text>
+                  <Text variant="caption" tone="tertiary">{formatShortDate(e.expense_date)}</Text>
+                </View>
+                <Text variant="bodyMed">{formatKES(e.total_cost)}</Text>
+              </View>
+            </Card>
+          </AnimatedPressable>
+        </FadeInView>
+      );
+    };
+  } else {
+    data = txs;
+    listHeader = (
+      <>
+        <HeroMetric
+          label="Cash you should have"
+          value={formatCompactKES(cashOnHand)}
+          tone={cashOnHand >= 0 ? 'success' : 'danger'}
+          verdict="Count your cash, M-Pesa and bank. A gap means something wasn't logged."
+          footer={
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}>
+                <Text variant="micro" tone="tertiary">CAME IN</Text>
+                <Text variant="statSm" tone="success">{formatCompactKES(cashIn)}</Text>
+              </View>
+              <View style={[styles.footDivider, { backgroundColor: colors.borderFaint }]} />
+              <View style={{ flex: 1 }}>
+                <Text variant="micro" tone="tertiary">WENT OUT</Text>
+                <Text variant="statSm" tone="danger">{formatCompactKES(cashOut)}</Text>
+              </View>
+            </View>
+          }
+        />
+        <View style={{ marginTop: space.md }}>
+          <Button
+            label="Record cash in or out"
+            onPress={() => cashRef.current?.expand()}
+            variant="secondary"
+            icon={<Ionicons name="swap-vertical" size={17} color={colors.textPrimary} />}
+          />
+        </View>
+        <Text variant="micro" tone="tertiary" style={{ marginTop: space.xl, marginBottom: space.sm }}>
+          CASH MOVEMENTS
+        </Text>
+      </>
+    );
+    listEmpty = (
+      <Card>
+        <Text variant="body" tone="secondary">
+          Nothing recorded yet. Log the money you put into the farm, any loan, and cash taken
+          for the household — otherwise the figure above can never match your real cash.
+        </Text>
+      </Card>
+    );
+    renderItem = ({ item: t, index }) => {
+      const meta = MONEY_TX.find((m) => m.type === t.tx_type);
+      const isIn = meta?.direction === 'in';
+      return (
+        <FadeInView index={capStaggerIndex(index)} style={{ marginBottom: space.sm }}>
+          <Card>
+            <View style={styles.debtHead}>
+              <Ionicons
+                name={isIn ? 'arrow-down-circle' : 'arrow-up-circle'}
+                size={20}
+                color={isIn ? colors.success : colors.danger}
+              />
+              <View style={{ flex: 1, marginLeft: space.md }}>
+                <Text variant="bodyMed">{meta?.label ?? t.tx_type}</Text>
+                <Text variant="caption" tone="tertiary" numberOfLines={1}>
+                  {formatShortDate(t.tx_date)}{t.notes ? ` · ${t.notes}` : ''}
+                </Text>
+              </View>
+              <Text variant="bodyMed" tone={isIn ? 'success' : 'danger'}>
+                {isIn ? '+' : '−'}{formatKES(t.amount)}
+              </Text>
+            </View>
+          </Card>
+        </FadeInView>
+      );
+    };
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -136,226 +360,16 @@ export default function MoneyScreen() {
         <Segmented options={SUBTABS} value={sub} onChange={setSub} />
       </View>
 
-      <ScreenScroll refreshing={refreshing} onRefresh={onRefresh}>
-        {sub === 'Debt' && (
-          <>
-            <HeroMetric
-              label="Owed to you"
-              value={formatCompactKES(totalOwed)}
-              tone={totalOwed === 0 ? 'success' : overdue.length ? 'danger' : 'warning'}
-              verdict={
-                totalOwed === 0
-                  ? 'Every sale is paid up.'
-                  : overdue.length
-                    ? `${overdue.length} customer${overdue.length === 1 ? ' is' : 's are'} more than 30 days late.`
-                    : `Across ${debtors.length} customer${debtors.length === 1 ? '' : 's'}.`
-              }
-            />
-
-            {balances === null ? (
-              <Skeleton width="100%" height={200} style={{ marginTop: space.md }} />
-            ) : debtors.length === 0 ? (
-              <View style={{ marginTop: space.lg }}>
-                <EmptyState icon="happy-outline" title="Nobody owes you" body="Every sale is fully paid up." />
-              </View>
-            ) : (
-              debtors.map((b, i) => {
-                const age = b.last_purchase ? daysBetween(b.last_purchase) : null;
-                const status = age === null ? 'neutral' : age > 60 ? 'overdue' : age > 30 ? 'attention' : 'fine';
-                return (
-                  <FadeInView key={b.customer_id} index={i} style={{ marginTop: space.md }}>
-                    <Card>
-                      <View style={styles.debtHead}>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="bodyMed" numberOfLines={1}>{b.name}</Text>
-                          <Text variant="caption" tone="tertiary">
-                            {age !== null ? `${age} days since last purchase` : 'No sale yet'}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end', gap: 5 }}>
-                          <Text variant="statSm" tone="warning">{formatKES(b.balance)}</Text>
-                          <StatusPill status={status as any} />
-                        </View>
-                      </View>
-
-                      {/* The two things you actually do about a debt, right on
-                          the row. v1 could only nag — there was no way to
-                          record that the money had arrived. */}
-                      <View style={styles.debtActions}>
-                        <AnimatedPressable
-                          onPress={() => openPayment(b)}
-                          haptic="light"
-                          style={[styles.debtBtn, { backgroundColor: colors.accent }]}>
-                          <Ionicons name="cash-outline" size={16} color={colors.accentText} />
-                          <Text variant="label" tone="inverse" style={{ marginLeft: 6 }}>Record payment</Text>
-                        </AnimatedPressable>
-
-                        {b.phone ? (
-                          <AnimatedPressable
-                            onPress={() =>
-                              Linking.openURL(
-                                `https://wa.me/${b.phone!.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                  `Hello ${b.name}, kindly remember your balance of KES ${Math.round(b.balance).toLocaleString()}. Thank you.`
-                                )}`
-                              )
-                            }
-                            haptic="light"
-                            accessibilityLabel={`Remind ${b.name} on WhatsApp`}
-                            style={[styles.waBtn, { backgroundColor: colors.successSoft }]}>
-                            <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
-                          </AnimatedPressable>
-                        ) : null}
-                      </View>
-                    </Card>
-                  </FadeInView>
-                );
-              })
-            )}
-          </>
-        )}
-
-        {sub === 'Expenses' && (
-          <>
-            <HeroMetric
-              label="Spent, last 50 entries"
-              value={formatCompactKES((expenses ?? []).reduce((s, e) => s + Number(e.total_cost), 0))}
-              tone="primary"
-              verdict="Reports breaks this down by category and per bird."
-            />
-            {expenses === null ? (
-              <Skeleton width="100%" height={200} style={{ marginTop: space.md }} />
-            ) : expenses.length === 0 ? (
-              <View style={{ marginTop: space.lg }}>
-                <EmptyState icon="receipt-outline" title="No expenses logged" body="Log your first cost from the Log tab." />
-              </View>
-            ) : (
-              expenses.map((e, i) => {
-                const thumb = e.receipt_url ? receiptUrls[e.receipt_url] : null;
-                return (
-                  <FadeInView key={e.id} index={i} style={{ marginTop: space.sm }}>
-                    <AnimatedPressable
-                      onPress={() => {}}
-                      onLongPress={() => {
-                        // Mistakes must be correctable — v1 made every entry
-                        // permanent. Long-press keeps delete off the happy path.
-                        Alert.alert(
-                          'Delete this expense?',
-                          `${e.category}${e.item ? ` · ${e.item}` : ''} — ${formatKES(e.total_cost)}. This removes it from your costs and profit.`,
-                          [
-                            { text: 'Keep it', style: 'cancel' },
-                            {
-                              text: 'Delete',
-                              style: 'destructive',
-                              onPress: async () => {
-                                const { error } = await supabase.from('expenses').delete().eq('id', e.id);
-                                if (!error) load();
-                              },
-                            },
-                          ]
-                        );
-                      }}
-                      haptic="medium"
-                      scaleTo={0.99}>
-                    <Card>
-                      <View style={styles.debtHead}>
-                        {thumb ? (
-                          <AnimatedPressable
-                            onPress={() => setViewingReceipt(thumb)}
-                            haptic="selection"
-                            accessibilityLabel="View receipt"
-                            style={{ marginRight: space.md }}>
-                            <Image source={{ uri: thumb }} style={styles.receiptThumb} contentFit="cover" transition={150} />
-                          </AnimatedPressable>
-                        ) : null}
-                        <View style={{ flex: 1 }}>
-                          <Text variant="bodyMed" numberOfLines={1}>
-                            {e.category}{e.item ? ` · ${e.item}` : ''}
-                          </Text>
-                          <Text variant="caption" tone="tertiary">{formatShortDate(e.expense_date)}</Text>
-                        </View>
-                        <Text variant="bodyMed">{formatKES(e.total_cost)}</Text>
-                      </View>
-                    </Card>
-                    </AnimatedPressable>
-                  </FadeInView>
-                );
-              })
-            )}
-          </>
-        )}
-
-        {sub === 'Cash' && (
-          <>
-            <HeroMetric
-              label="Cash you should have"
-              value={formatCompactKES(cashOnHand)}
-              tone={cashOnHand >= 0 ? 'success' : 'danger'}
-              verdict="Count your cash, M-Pesa and bank. A gap means something wasn't logged."
-              footer={
-                <View style={{ flexDirection: 'row' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="micro" tone="tertiary">CAME IN</Text>
-                    <Text variant="statSm" tone="success">{formatCompactKES(cashIn)}</Text>
-                  </View>
-                  <View style={[styles.footDivider, { backgroundColor: colors.borderFaint }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text variant="micro" tone="tertiary">WENT OUT</Text>
-                    <Text variant="statSm" tone="danger">{formatCompactKES(cashOut)}</Text>
-                  </View>
-                </View>
-              }
-            />
-
-            <View style={{ marginTop: space.md }}>
-              <Button
-                label="Record cash in or out"
-                onPress={() => cashRef.current?.expand()}
-                variant="secondary"
-                icon={<Ionicons name="swap-vertical" size={17} color={colors.textPrimary} />}
-              />
-            </View>
-
-            <Text variant="micro" tone="tertiary" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-              CASH MOVEMENTS
-            </Text>
-            {txs.length === 0 ? (
-              <Card>
-                <Text variant="body" tone="secondary">
-                  Nothing recorded yet. Log the money you put into the farm, any loan, and cash taken
-                  for the household — otherwise the figure above can never match your real cash.
-                </Text>
-              </Card>
-            ) : (
-              txs.map((t, i) => {
-                const meta = MONEY_TX.find((m) => m.type === t.tx_type);
-                const isIn = meta?.direction === 'in';
-                return (
-                  <FadeInView key={t.id} index={i} style={{ marginTop: space.sm }}>
-                    <Card>
-                      <View style={styles.debtHead}>
-                        <Ionicons
-                          name={isIn ? 'arrow-down-circle' : 'arrow-up-circle'}
-                          size={20}
-                          color={isIn ? colors.success : colors.danger}
-                        />
-                        <View style={{ flex: 1, marginLeft: space.md }}>
-                          <Text variant="bodyMed">{meta?.label ?? t.tx_type}</Text>
-                          <Text variant="caption" tone="tertiary" numberOfLines={1}>
-                            {formatShortDate(t.tx_date)}{t.notes ? ` · ${t.notes}` : ''}
-                          </Text>
-                        </View>
-                        <Text variant="bodyMed" tone={isIn ? 'success' : 'danger'}>
-                          {isIn ? '+' : '−'}{formatKES(t.amount)}
-                        </Text>
-                      </View>
-                    </Card>
-                  </FadeInView>
-                );
-              })
-            )}
-          </>
-        )}
-      </ScreenScroll>
+      <ScreenList
+        key={sub}
+        data={data}
+        keyExtractor={(item: Row) => (sub === 'Debt' ? item.customer_id : item.id)}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        renderItem={renderItem}
+      />
 
       <PaymentSheet
         ref={paymentRef}

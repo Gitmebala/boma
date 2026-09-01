@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, SectionList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -11,12 +11,13 @@ import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { FadeInView } from '@/components/ui/FadeInView';
+import { capStaggerIndex } from '@/components/ui/VirtualList';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { useTheme } from '@/lib/ThemeContext';
+import { useTheme, useTabBarClearance } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { daysBetween, formatShortDate } from '@/lib/format';
-import { space, layout } from '@/lib/theme';
+import { space } from '@/lib/theme';
 
 const CATEGORIES = ['biosecurity', 'cleaning', 'maintenance', 'vaccination', 'other'] as const;
 const CATEGORY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -34,6 +35,7 @@ interface TaskRow {
 export default function TasksScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const clearance = useTabBarClearance();
   const [tasks, setTasks] = useState<TaskRow[] | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -72,31 +74,14 @@ export default function TasksScreen() {
   const upcoming = visible.filter((t) => !t.done && daysBetween(t.due_date) <= 0);
   const done = visible.filter((t) => t.done);
 
-  const Section = ({ label, rows }: { label: string; rows: TaskRow[] }) => rows.length === 0 ? null : (
-    <View style={{ marginBottom: space.xl }}>
-      <Text variant="label" tone="tertiary" style={{ marginBottom: space.sm, marginLeft: 4 }}>{label.toUpperCase()}</Text>
-      <View style={{ gap: space.sm }}>
-        {rows.map((t, i) => (
-          <FadeInView key={t.id} index={i}>
-            <AnimatedPressable onPress={() => toggleDone(t)} haptic="light" scaleTo={0.99}>
-              <Card style={styles.row}>
-                <View style={[styles.check, { backgroundColor: t.done ? colors.success : colors.surfaceSunken, borderColor: t.done ? colors.success : colors.border }]}>
-                  {t.done && <Ionicons name="checkmark" size={14} color={colors.accentText} />}
-                </View>
-                <Ionicons name={CATEGORY_ICON[t.category]} size={18} color={colors.textSecondary} style={{ marginLeft: space.md }} />
-                <View style={{ flex: 1, marginLeft: space.md }}>
-                  <Text variant="bodyMed" tone={t.done ? 'tertiary' : 'primary'} style={t.done ? { textDecorationLine: 'line-through' } : undefined}>
-                    {t.title}
-                  </Text>
-                  <Text variant="caption" tone="tertiary">{t.category} · {formatShortDate(t.due_date)}</Text>
-                </View>
-              </Card>
-            </AnimatedPressable>
-          </FadeInView>
-        ))}
-      </View>
-    </View>
-  );
+  // SectionList is the correct primitive here — the Overdue/Upcoming/Done
+  // grouping was already exactly what it exists for, and it virtualizes
+  // section headers along with rows for free.
+  const sections = [
+    { title: 'Overdue', data: overdue },
+    { title: 'Upcoming', data: upcoming },
+    ...(showDone ? [{ title: 'Done', data: done }] : []),
+  ].filter((s) => s.data.length > 0);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top']}>
@@ -122,20 +107,51 @@ export default function TasksScreen() {
         </FadeInView>
       )}
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: layout.tabBarClearance }} showsVerticalScrollIndicator={false}>
-        {tasks === null ? null : visible.length === 0 && !adding ? (
+      {tasks === null ? null : sections.length === 0 && !adding ? (
+        <View style={{ paddingHorizontal: space.xl }}>
           <EmptyState icon="checkmark-done-outline" title="Nothing outstanding" body="Biosecurity and cleaning tasks for your flocks show up here automatically." />
-        ) : (
-          <>
-            <Section label="Overdue" rows={overdue} />
-            <Section label="Upcoming" rows={upcoming} />
-            {showDone && <Section label="Done" rows={done} />}
-          </>
-        )}
-        <AnimatedPressable onPress={() => setShowDone((v) => !v)} haptic="selection" style={{ alignSelf: 'center', marginBottom: space.xl }}>
-          <Text variant="caption" tone="accent">{showDone ? 'Hide completed' : 'Show completed'}</Text>
-        </AnimatedPressable>
-      </ScrollView>
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(t) => t.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: clearance }}
+          stickySectionHeadersEnabled={false}
+          windowSize={7}
+          maxToRenderPerBatch={8}
+          initialNumToRender={10}
+          removeClippedSubviews
+          renderSectionHeader={({ section }) => (
+            <Text variant="label" tone="tertiary" style={{ marginTop: space.lg, marginBottom: space.sm, marginLeft: 4 }}>
+              {section.title.toUpperCase()}
+            </Text>
+          )}
+          renderItem={({ item: t, index }) => (
+            <FadeInView index={capStaggerIndex(index)} style={{ marginBottom: space.sm }}>
+              <AnimatedPressable onPress={() => toggleDone(t)} haptic="light" scaleTo={0.99}>
+                <Card style={styles.row}>
+                  <View style={[styles.check, { backgroundColor: t.done ? colors.success : colors.surfaceSunken, borderColor: t.done ? colors.success : colors.border }]}>
+                    {t.done && <Ionicons name="checkmark" size={14} color={colors.accentText} />}
+                  </View>
+                  <Ionicons name={CATEGORY_ICON[t.category]} size={18} color={colors.textSecondary} style={{ marginLeft: space.md }} />
+                  <View style={{ flex: 1, marginLeft: space.md }}>
+                    <Text variant="bodyMed" tone={t.done ? 'tertiary' : 'primary'} style={t.done ? { textDecorationLine: 'line-through' } : undefined}>
+                      {t.title}
+                    </Text>
+                    <Text variant="caption" tone="tertiary">{t.category} · {formatShortDate(t.due_date)}</Text>
+                  </View>
+                </Card>
+              </AnimatedPressable>
+            </FadeInView>
+          )}
+          ListFooterComponent={
+            <AnimatedPressable onPress={() => setShowDone((v) => !v)} haptic="selection" style={{ alignSelf: 'center', marginTop: space.md, marginBottom: space.xl }}>
+              <Text variant="caption" tone="accent">{showDone ? 'Hide completed' : 'Show completed'}</Text>
+            </AnimatedPressable>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }

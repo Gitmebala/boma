@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -10,12 +10,13 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ScreenList, capStaggerIndex } from '@/components/ui/VirtualList';
 import { NewFlockSheet, NewFlockSheetHandle } from '@/components/flocks/NewFlockSheet';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase, FlockSummary } from '@/lib/supabase';
 import { formatPct, formatKES, daysBetween } from '@/lib/format';
-import { space, radius, layout } from '@/lib/theme';
+import { space, radius } from '@/lib/theme';
 
 const FILTERS = ['All', 'Active', 'Selling', 'Sold Out'] as const;
 
@@ -52,17 +53,29 @@ export default function FlocksListScreen() {
         {FILTERS.map((f) => <Chip key={f} label={f} selected={filter === f} onPress={() => setFilter(f)} />)}
       </ScrollView>
 
-      <ScrollView
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-        showsVerticalScrollIndicator={false}>
-        {flocks === null ? (
-          <View style={{ gap: space.md }}>{[0, 1, 2].map((i) => <Skeleton key={i} width="100%" height={96} />)}</View>
-        ) : visible.length === 0 ? (
-          <EmptyState icon="egg-outline" title="No flocks here" body="Add your first batch of chicks to start tracking growth, feed and vaccines." actionLabel="Add a flock" onAction={() => sheetRef.current?.open()} />
-        ) : (
-          visible.map((f, i) => (
-            <FadeInView key={f.flock_id} index={i}>
+      {flocks === null ? (
+        <View style={{ gap: space.md, paddingHorizontal: space.xl }}>
+          {[0, 1, 2].map((i) => <Skeleton key={i} width="100%" height={96} />)}
+        </View>
+      ) : (
+        <ScreenList
+          tabBar
+          data={visible}
+          keyExtractor={(f) => f.flock_id}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          contentContainerStyle={{ gap: space.md }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="egg-outline"
+              title="No flocks here"
+              body="Add your first batch of chicks to start tracking growth, feed and vaccines."
+              actionLabel="Add a flock"
+              onAction={() => sheetRef.current?.open()}
+            />
+          }
+          renderItem={({ item: f, index }) => (
+            <FadeInView index={capStaggerIndex(index)}>
               <AnimatedPressable onPress={() => router.push(`/(tabs)/flocks/${f.flock_id}`)} haptic="selection" scaleTo={0.98}>
                 <Card style={styles.card}>
                   <View style={styles.cardTop}>
@@ -87,9 +100,9 @@ export default function FlocksListScreen() {
                 </Card>
               </AnimatedPressable>
             </FadeInView>
-          ))
-        )}
-      </ScrollView>
+          )}
+        />
+      )}
 
       <NewFlockSheet ref={sheetRef} onCreated={load} />
     </SafeAreaView>
@@ -110,7 +123,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
   addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexGrow: 0, marginBottom: space.lg },
-  list: { paddingHorizontal: space.xl, gap: space.md, paddingBottom: layout.tabBarClearance },
   card: {},
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   statusDot: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },

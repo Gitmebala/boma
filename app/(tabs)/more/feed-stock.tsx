@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -9,12 +9,14 @@ import { Field } from '@/components/ui/Field';
 import { Chip } from '@/components/ui/Chip';
 import { Button } from '@/components/ui/Button';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { FadeInView } from '@/components/ui/FadeInView';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ScreenList, capStaggerIndex } from '@/components/ui/VirtualList';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { supabase } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
-import { space, layout } from '@/lib/theme';
+import { space } from '@/lib/theme';
 
 const FEED_TYPES = ['Starter', 'Grower', 'Finisher', 'Other'];
 
@@ -76,47 +78,55 @@ export default function FeedStockScreen() {
         </AnimatedPressable>
         <Text variant="h2" style={{ marginLeft: space.md }}>Feed stock</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: layout.tabBarClearance }} keyboardShouldPersistTaps="handled">
-        {stockByType.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: space.md, marginBottom: space.xl, flexWrap: 'wrap' }}>
-            {stockByType.map(([type, bags]) => (
-              <Card key={type} style={{ flex: 1, minWidth: 140 }}>
-                <Text variant="micro" tone="tertiary">{type.toUpperCase()}</Text>
-                <Text variant="h2" tone={bags < 5 ? 'danger' : 'primary'}>{bags.toFixed(0)}</Text>
-                <Text variant="caption" tone="tertiary">bags in store</Text>
+      <ScreenList
+        data={rows}
+        keyExtractor={(r: any) => r.id}
+        contentContainerStyle={{ padding: space.xl }}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          <>
+            {stockByType.length > 0 && (
+              <View style={{ flexDirection: 'row', gap: space.md, marginBottom: space.xl, flexWrap: 'wrap' }}>
+                {stockByType.map(([type, bags]) => (
+                  <Card key={type} style={{ flex: 1, minWidth: 140 }}>
+                    <Text variant="micro" tone="tertiary">{type.toUpperCase()}</Text>
+                    <Text variant="h2" tone={bags < 5 ? 'danger' : 'primary'}>{bags.toFixed(0)}</Text>
+                    <Text variant="caption" tone="tertiary">bags in store</Text>
+                  </Card>
+                ))}
+              </View>
+            )}
+
+            {kgLogged > 0 && (
+              <Card sunken style={{ marginBottom: space.xl }}>
+                <Text variant="caption" tone="secondary">
+                  Your daily logs say the birds have eaten <Text variant="bodyMed">{Math.round(kgLogged)} kg</Text> so
+                  far — about {Math.ceil(kgLogged / 50)} bags of 50 kg. If the store above shows more than what's
+                  physically there, log the used bags out here.
+                </Text>
               </Card>
-            ))}
-          </View>
-        )}
+            )}
 
-        {kgLogged > 0 && (
-          <Card sunken style={{ marginBottom: space.xl }}>
-            <Text variant="caption" tone="secondary">
-              Your daily logs say the birds have eaten <Text variant="bodyMed">{Math.round(kgLogged)} kg</Text> so
-              far — about {Math.ceil(kgLogged / 50)} bags of 50 kg. If the store above shows more than what's
-              physically there, log the used bags out here.
-            </Text>
-          </Card>
-        )}
-
-        <Card style={{ marginBottom: space.xl }}>
-          <Text variant="h3" style={{ marginBottom: space.md }}>Record movement</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.lg }}>
-            {FEED_TYPES.map((t) => <Chip key={t} label={t} selected={feedType === t} onPress={() => setFeedType(t)} />)}
-          </View>
-          <View style={{ flexDirection: 'row', gap: space.md }}>
-            <View style={{ flex: 1 }}><Field label="Bags in" value={bagsIn} onChangeText={setBagsIn} keyboardType="decimal-pad" /></View>
-            <View style={{ flex: 1 }}><Field label="Bags out" value={bagsOut} onChangeText={setBagsOut} keyboardType="decimal-pad" /></View>
-          </View>
-          <Field label="Cost per bag" value={costPerBag} onChangeText={setCostPerBag} keyboardType="decimal-pad" suffix="KES" placeholder="Optional" />
-          <Button label="Save" onPress={save} loading={saving} disabled={!bagsIn && !bagsOut} />
-        </Card>
-
-        {rows.length === 0 ? (
+            <Card style={{ marginBottom: space.xl }}>
+              <Text variant="h3" style={{ marginBottom: space.md }}>Record movement</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.lg }}>
+                {FEED_TYPES.map((t) => <Chip key={t} label={t} selected={feedType === t} onPress={() => setFeedType(t)} />)}
+              </View>
+              <View style={{ flexDirection: 'row', gap: space.md }}>
+                <View style={{ flex: 1 }}><Field label="Bags in" value={bagsIn} onChangeText={setBagsIn} keyboardType="decimal-pad" /></View>
+                <View style={{ flex: 1 }}><Field label="Bags out" value={bagsOut} onChangeText={setBagsOut} keyboardType="decimal-pad" /></View>
+              </View>
+              <Field label="Cost per bag" value={costPerBag} onChangeText={setCostPerBag} keyboardType="decimal-pad" suffix="KES" placeholder="Optional" />
+              <Button label="Save" onPress={save} loading={saving} disabled={!bagsIn && !bagsOut} />
+            </Card>
+          </>
+        }
+        ListEmptyComponent={
           <EmptyState icon="cube-outline" title="No feed movements yet" body="Log bags in when you buy feed, and bags out as it's used." />
-        ) : (
-          rows.slice(0, 20).map((r) => (
-            <Card key={r.id} style={styles.row}>
+        }
+        renderItem={({ item: r, index }: { item: any; index: number }) => (
+          <FadeInView index={capStaggerIndex(index)}>
+            <Card style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text variant="bodyMed">{r.feed_type}</Text>
                 <Text variant="caption" tone="tertiary">{new Date(r.tx_date).toLocaleDateString()}</Text>
@@ -125,9 +135,9 @@ export default function FeedStockScreen() {
                 {r.bags_in > 0 ? `+${r.bags_in}` : `-${r.bags_out}`}
               </Text>
             </Card>
-          ))
+          </FadeInView>
         )}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
