@@ -34,19 +34,24 @@ export default function FlockDetailScreen() {
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([]);
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [salesCount, setSalesCount] = useState(0);
   const logSheetRef = useRef<BottomSheet>(null);
   const countSheetRef = useRef<BottomSheet>(null);
 
   const load = useCallback(async () => {
-    const [{ data: f }, { data: s }, { data: v }, { data: l }, { data: e }] = await Promise.all([
+    const [{ data: f }, { data: s }, { data: v }, { data: l }, { data: e }, { count: salesN }] = await Promise.all([
       supabase.from('flocks').select('*').eq('id', id).single(),
       supabase.from('flock_summary').select('*').eq('flock_id', id).single(),
       supabase.from('vaccinations').select('*').eq('flock_id', id).order('age_days'),
       supabase.from('daily_logs').select('*').eq('flock_id', id).order('log_date', { ascending: false }).limit(30),
       supabase.from('expenses').select('*').eq('flock_id', id).order('expense_date', { ascending: false }),
+      // Only the count matters — it decides whether this batch can be
+      // deleted at all (sales are ON DELETE NO ACTION).
+      supabase.from('sales').select('id', { count: 'exact', head: true }).eq('flock_id', id),
     ]);
     setFlock(f as Flock); setSummary(s as FlockSummary); setVaccinations((v as Vaccination[]) ?? []);
     setLogs((l as DailyLog[]) ?? []); setExpenses((e as Expense[]) ?? []);
+    setSalesCount(salesN ?? 0);
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -216,6 +221,70 @@ export default function FlockDetailScreen() {
                 style={{ marginTop: space.md }}
               />
             )}
+
+            {/*
+              Deleting is for a batch entered by mistake, not for one that
+              has finished — that is what Close is for, and the wording keeps
+              the two apart.
+
+              The database decides what is actually possible here:
+              daily_logs, vaccinations and tasks are ON DELETE CASCADE, so
+              they go with the flock silently. expenses, sales and feed_stock
+              are ON DELETE NO ACTION, so Postgres refuses outright once any
+              money is attached. Rather than let a farmer tap Delete and meet
+              a raw foreign-key error, we check first and explain.
+            */}
+            <Button
+              label="Delete this batch"
+              variant="danger"
+              onPress={() => {
+                const hasMoney = salesCount > 0 || expenses.length > 0;
+
+                if (hasMoney) {
+                  const parts = [
+                    salesCount > 0 ? `${salesCount} sale${salesCount === 1 ? '' : 's'}` : null,
+                    expenses.length > 0 ? `${expenses.length} expense${expenses.length === 1 ? '' : 's'}` : null,
+                  ].filter(Boolean).join(' and ');
+
+                  Alert.alert(
+                    "This batch can't be deleted",
+                    `It has ${parts} recorded against it, and deleting it would remove money from your books.\n\nClose the batch instead — it stops showing as active but keeps its numbers in Reports. To delete it, first remove those entries from the Money tab.`,
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
+
+                Alert.alert(
+                  `Delete ${flock.flock_code}?`,
+                  `This permanently removes the batch and everything logged against it — ${logs.length} daily ${logs.length === 1 ? 'entry' : 'entries'}, its vaccination schedule and its tasks.\n\nThis cannot be undone.`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: async () => {
+                        // Written directly rather than queued: the farmer is
+                        // about to be navigated away, and a delete that
+                        // failed later — silently, from a queue — would
+                        // leave them thinking a batch was gone when it
+                        // wasn't.
+                        const { error } = await supabase.from('flocks').delete().eq('id', id);
+                        if (error) {
+                          Alert.alert(
+                            "Couldn't delete",
+                            'Something is still attached to this batch. Close it instead, or remove its entries first.'
+                          );
+                          return;
+                        }
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        router.replace('/(tabs)/flocks');
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={{ marginTop: space.sm }}
+            />
           </FadeInView>
         )}
 
