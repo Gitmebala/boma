@@ -5,12 +5,13 @@ import { Text } from './Text';
 import { AnimatedPressable } from './AnimatedPressable';
 import { useTheme } from '@/lib/ThemeContext';
 import { useSync } from '@/lib/sync';
+import { useTranslation } from '@/lib/i18n';
 import { space, radius } from '@/lib/theme';
 
 /**
  * The honest half of the offline-write contract.
  *
- * enqueueWrite() lets a farmer feel instant success the moment an entry is
+ * enqueueInsert() lets a farmer feel instant success the moment an entry is
  * durably on their phone — but that's only honest if the app also tells them,
  * plainly, when something hasn't reached the server yet. This is that
  * telling: silent when the queue is empty, otherwise a calm status line
@@ -20,6 +21,7 @@ import { space, radius } from '@/lib/theme';
 export function SyncStatusBanner() {
   const { colors } = useTheme();
   const { pendingCount, isOnline, isSyncing, lastFatalError, retryNow } = useSync();
+  const { t } = useTranslation();
 
   if (pendingCount === 0 && !lastFatalError) return null;
 
@@ -28,18 +30,18 @@ export function SyncStatusBanner() {
   const fg = fatal ? colors.danger : colors.warning;
 
   const label = fatal
-    ? "Couldn't save an entry — tap to see why"
+    ? t('sync.couldNotSave')
     : pendingCount === 1
-      ? '1 entry waiting to sync'
-      : `${pendingCount} entries waiting to sync`;
+      ? t('sync.onePending')
+      : t('sync.manyPending', { count: pendingCount });
 
   const sub = fatal
     ? lastFatalError
     : isSyncing
-      ? 'Syncing…'
+      ? t('sync.syncing')
       : isOnline
-        ? 'Will sync shortly'
-        : "Saved on your phone — will sync once you're back online";
+        ? t('sync.willSync')
+        : t('sync.savedOnPhone');
 
   return (
     <AnimatedPressable onPress={retryNow} haptic="light" scaleTo={0.99}>

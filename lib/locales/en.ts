@@ -2,9 +2,11 @@
  * English dictionary — the canonical shape. `sw.ts` must match this
  * structure exactly (lib/i18n.tsx types every other locale against it).
  *
- * Started here rather than finished: infra is wired (lib/i18n.tsx), but
- * screens have not been converted to call t() yet. Tracked as a follow-up —
- * see task_99b0901b.
+ * Scope note: this covers the screens a farmer touches every day (Home,
+ * Log, Money, Flocks, Reports, and the account screens) plus shared
+ * primitives. Deeper reference screens in the community hub still read
+ * English — an honest partial beats a machine-translated whole, and the
+ * language toggle now genuinely changes the app rather than doing nothing.
  */
 export const en = {
   common: {
@@ -22,6 +24,87 @@ export const en = {
     retry: 'Try again',
     today: 'Today',
     yesterday: 'Yesterday',
+    seeAll: 'See all',
+    birds: 'birds',
+    days: 'days',
+  },
+  tabs: {
+    home: 'Home',
+    flocks: 'Flocks',
+    money: 'Money',
+    reports: 'Reports',
+  },
+  home: {
+    goodMorning: 'Good morning',
+    goodAfternoon: 'Good afternoon',
+    goodEvening: 'Good evening',
+    yourFarm: 'Your farm',
+    expectedProfit: 'Expected profit this cycle',
+    profitSoFar: 'Profit so far',
+    bankedSoFar: 'BANKED SO FAR',
+    stillToSell: 'STILL TO SELL',
+    birdsOnFarm: 'Birds on farm',
+    owedToYou: 'Owed to you',
+    deaths14d: 'Deaths, 14d',
+    activeBatches: 'Active batches',
+    noActiveBatches: 'No active batches',
+    noActiveBatchesBody: 'Start a batch and Boma tracks growth, deaths, feed and profit for you.',
+    addBatch: 'Add a batch',
+    deathsLast14: 'Deaths, last 14 days',
+    community: 'Your farming community',
+    communitySub: 'Symptom checker · agrovets · training',
+    dayOf: 'day {{day}} of {{total}}',
+    toMarket: '{{days}}d to market',
+    atMarketWeight: 'At market weight',
+    cycle: 'Cycle',
+    deaths: 'Deaths',
+    accountLabel: 'Account and settings',
+  },
+  log: {
+    title: 'Quick log',
+    subtitle: 'The batch, date and category you used last time stay put.',
+    everyDay: 'Every day',
+    everyDayHint: 'Thirty seconds in the house, and the rest of the app stays accurate.',
+    money: 'Money',
+    moneyHint: 'Log these as they happen and your profit stays honest.',
+    deaths: 'Deaths',
+    deathsHint: 'Birds lost today',
+    feed: 'Feed',
+    feedHint: 'Bags or kg used',
+    weigh: 'Weigh-in',
+    weighHint: 'Sample weight',
+    water: 'Water',
+    waterHint: 'Litres drunk today',
+    sale: 'Sale',
+    saleHint: 'Birds sold to a buyer',
+    expense: 'Expense',
+    expenseHint: 'Something you paid for',
+    payment: 'Payment received',
+    paymentHint: 'A customer clearing what they owe',
+    cash: 'Cash in or out',
+    cashHint: 'Your own money, a loan, household cash',
+    whichDay: 'WHICH DAY?',
+    saveEntry: 'Save entry',
+    logDeaths: 'Log deaths',
+    logFeed: 'Log feed used',
+    logWeigh: 'Log a weigh-in',
+    logWater: 'Log water drunk',
+    deathsSub: 'Leave it at zero if none died.',
+    feedSub: 'Total eaten by this batch that day.',
+    weighSub: 'Weigh a handful of birds and enter the average.',
+    waterSub: 'A sudden drop is often the first sign of illness — before a sick bird is visible.',
+    birdsDied: 'Birds died',
+    feedUsedKg: 'Feed used (kg)',
+    avgWeightKg: 'Average sample weight (kg)',
+    waterLitres: 'Water drunk (litres)',
+  },
+  sync: {
+    onePending: '1 entry waiting to sync',
+    manyPending: '{{count}} entries waiting to sync',
+    syncing: 'Syncing…',
+    willSync: 'Will sync shortly',
+    savedOnPhone: "Saved on your phone — will sync once you're back online",
+    couldNotSave: "Couldn't save an entry — tap to see why",
   },
   constants: {
     // Expense categories, payment methods, customer types — canonical value

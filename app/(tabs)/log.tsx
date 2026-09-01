@@ -20,6 +20,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useSync } from '@/lib/sync';
+import { useTranslation, useConstantLabel } from '@/lib/i18n';
 import { uploadReceipt, ReceiptAsset } from '@/lib/receipts';
 import { supabase, EXPENSE_CATEGORIES, PAYMENT_METHODS, FlockSummary } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
@@ -27,37 +28,47 @@ import { space, radius, elevation } from '@/lib/theme';
 
 type ActionKey = 'deaths' | 'feed' | 'weigh' | 'water' | 'expense' | 'sale' | 'payment' | 'cash';
 
-const GROUPS: {
-  title: string;
+type ActionDef = {
+  key: ActionKey;
+  label: string;
   hint: string;
-  actions: { key: ActionKey; label: string; hint: string; icon: keyof typeof Ionicons.glyphMap; tone: 'danger' | 'accent' | 'warning' | 'success' }[];
-}[] = [
-  {
-    title: 'Every day',
-    hint: 'Thirty seconds in the house, and the rest of the app stays accurate.',
-    actions: [
-      { key: 'deaths', label: 'Deaths', hint: 'Birds lost today', icon: 'alert-circle-outline', tone: 'danger' },
-      { key: 'feed', label: 'Feed', hint: 'Bags or kg used', icon: 'nutrition-outline', tone: 'accent' },
-      { key: 'weigh', label: 'Weigh-in', hint: 'Sample weight', icon: 'speedometer-outline', tone: 'accent' },
-      // The earliest warning a farmer has: intake drops 12-24h before a sick
-      // bird is visible to the eye. Worth its own daily habit, not buried
-      // inside "observations" free text where nothing can watch it.
-      { key: 'water', label: 'Water', hint: 'Litres drunk today', icon: 'water-outline', tone: 'accent' },
-    ],
-  },
-  {
-    title: 'Money',
-    hint: 'Log these as they happen and your profit stays honest.',
-    actions: [
-      { key: 'sale', label: 'Sale', hint: 'Birds sold to a buyer', icon: 'pricetag-outline', tone: 'success' },
-      { key: 'expense', label: 'Expense', hint: 'Something you paid for', icon: 'card-outline', tone: 'warning' },
-      { key: 'payment', label: 'Payment received', hint: 'A customer clearing what they owe', icon: 'cash-outline', tone: 'success' },
-      { key: 'cash', label: 'Cash in or out', hint: 'Your own money, a loan, household cash', icon: 'swap-vertical-outline', tone: 'accent' },
-    ],
-  },
-];
+  icon: keyof typeof Ionicons.glyphMap;
+  tone: 'danger' | 'accent' | 'warning' | 'success';
+};
+
+/** Built from t() rather than a module constant, so the labels change with
+ *  the farmer's language instead of being frozen at import time. */
+function buildGroups(t: (k: any, v?: any) => string): { title: string; hint: string; actions: ActionDef[] }[] {
+  return [
+    {
+      title: t('log.everyDay'),
+      hint: t('log.everyDayHint'),
+      actions: [
+        { key: 'deaths', label: t('log.deaths'), hint: t('log.deathsHint'), icon: 'alert-circle-outline', tone: 'danger' },
+        { key: 'feed', label: t('log.feed'), hint: t('log.feedHint'), icon: 'nutrition-outline', tone: 'accent' },
+        { key: 'weigh', label: t('log.weigh'), hint: t('log.weighHint'), icon: 'speedometer-outline', tone: 'accent' },
+        // The earliest warning a farmer has: intake drops 12-24h before a
+        // sick bird is visible to the eye. Worth its own daily habit, not
+        // buried inside "observations" free text where nothing watches it.
+        { key: 'water', label: t('log.water'), hint: t('log.waterHint'), icon: 'water-outline', tone: 'accent' },
+      ],
+    },
+    {
+      title: t('log.money'),
+      hint: t('log.moneyHint'),
+      actions: [
+        { key: 'sale', label: t('log.sale'), hint: t('log.saleHint'), icon: 'pricetag-outline', tone: 'success' },
+        { key: 'expense', label: t('log.expense'), hint: t('log.expenseHint'), icon: 'card-outline', tone: 'warning' },
+        { key: 'payment', label: t('log.payment'), hint: t('log.paymentHint'), icon: 'cash-outline', tone: 'success' },
+        { key: 'cash', label: t('log.cash'), hint: t('log.cashHint'), icon: 'swap-vertical-outline', tone: 'accent' },
+      ],
+    },
+  ];
+}
 
 export default function LogScreen() {
+  const { t } = useTranslation();
+  const GROUPS = buildGroups(t);
   const dailyRef = useRef<BottomSheet>(null);
   const expenseRef = useRef<BottomSheet>(null);
   const saleRef = useRef<BottomSheet>(null);
@@ -80,9 +91,9 @@ export default function LogScreen() {
   return (
     <Screen>
       <ScreenScroll>
-        <Text variant="h1" style={{ paddingTop: space.xs }}>Quick log</Text>
+        <Text variant="h1" style={{ paddingTop: space.xs }}>{t('log.title')}</Text>
         <Text variant="body" tone="secondary" style={{ marginTop: 2 }}>
-          The batch, date and category you used last time stay put.
+          {t('log.subtitle')}
         </Text>
 
         {GROUPS.map((group, gi) => (
@@ -163,7 +174,8 @@ function ActionRow({
 // ---------------------------------------------------------------------------
 const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'weigh' | 'water' }>(({ mode }, ref) => {
   const { colors } = useTheme();
-  const { enqueueWrite } = useSync();
+  const { t } = useTranslation();
+  const { enqueueInsert } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [deaths, setDeaths] = useState('');
   const [feed, setFeed] = useState('');
@@ -174,22 +186,27 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
   const [agoDays, setAgoDays] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  const titles = { deaths: 'Log deaths', feed: 'Log feed used', weigh: 'Log a weigh-in', water: 'Log water drunk' };
+  const titles = {
+    deaths: t('log.logDeaths'),
+    feed: t('log.logFeed'),
+    weigh: t('log.logWeigh'),
+    water: t('log.logWater'),
+  };
   const subtitles = {
-    deaths: 'Leave it at zero if none died.',
-    feed: 'Total eaten by this batch that day.',
-    weigh: 'Weigh a handful of birds and enter the average.',
-    water: 'A sudden drop is often the first sign of illness — before a sick bird is visible.',
+    deaths: t('log.deathsSub'),
+    feed: t('log.feedSub'),
+    weigh: t('log.weighSub'),
+    water: t('log.waterSub'),
   };
 
   const save = async () => {
     if (!flockId) return;
     setSaving(true);
-    // enqueueWrite durably saves to the phone before returning — that local
+    // enqueueInsert durably saves to the phone before returning — that local
     // save, not a server round trip, is the "landed" moment. Whether it has
     // reached Supabase yet is a separate, honestly-shown fact (the banner
     // at the top of the screen), not something this sheet blocks on.
-    await enqueueWrite('daily_logs', {
+    await enqueueInsert('daily_logs', {
       flock_id: flockId,
       log_date: new Date(Date.now() - agoDays * 86400000).toISOString().slice(0, 10),
       birds_died: mode === 'deaths' ? Number(deaths) || 0 : 0,
@@ -209,20 +226,20 @@ const DailySheet = React.forwardRef<BottomSheet, { mode: 'deaths' | 'feed' | 'we
       title={titles[mode]}
       subtitle={subtitles[mode]}
       snapPoints={['68%']}
-      footer={<Button label="Save entry" onPress={save} loading={saving} disabled={!flockId} size="lg" />}>
+      footer={<Button label={t('log.saveEntry')} onPress={save} loading={saving} disabled={!flockId} size="lg" />}>
       <FlockPicker value={flockId} onChange={setFlockId} />
 
-      <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>WHICH DAY?</Text>
+      <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>{t('log.whichDay')}</Text>
       <View style={[styles.chipWrap, { marginBottom: space.lg }]}>
-        {(['Today', 'Yesterday'] as const).map((label, i) => (
+        {([t('common.today'), t('common.yesterday')]).map((label, i) => (
           <Chip key={label} label={label} selected={agoDays === i} onPress={() => setAgoDays(i)} />
         ))}
       </View>
 
-      {mode === 'deaths' && <Field label="Birds died" value={deaths} onChangeText={setDeaths} keyboardType="number-pad" />}
-      {mode === 'feed' && <Field label="Feed used (kg)" value={feed} onChangeText={setFeed} keyboardType="decimal-pad" suffix="kg" />}
-      {mode === 'weigh' && <Field label="Average sample weight (kg)" value={weight} onChangeText={setWeight} keyboardType="decimal-pad" suffix="kg" />}
-      {mode === 'water' && <Field label="Water drunk (litres)" value={water} onChangeText={setWater} keyboardType="decimal-pad" suffix="L" />}
+      {mode === 'deaths' && <Field label={t('log.birdsDied')} value={deaths} onChangeText={setDeaths} keyboardType="number-pad" />}
+      {mode === 'feed' && <Field label={t('log.feedUsedKg')} value={feed} onChangeText={setFeed} keyboardType="decimal-pad" suffix="kg" />}
+      {mode === 'weigh' && <Field label={t('log.avgWeightKg')} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" suffix="kg" />}
+      {mode === 'water' && <Field label={t('log.waterLitres')} value={water} onChangeText={setWater} keyboardType="decimal-pad" suffix="L" />}
     </Sheet>
   );
 });
@@ -232,9 +249,10 @@ DailySheet.displayName = 'DailySheet';
 // Expense
 // ---------------------------------------------------------------------------
 const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
+  const label = useConstantLabel();
   const { farm } = useFarm();
   const { session } = useAuth();
-  const { enqueueWrite, patchQueuedIfPending } = useSync();
+  const { enqueueInsert, patchQueuedIfPending } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [item, setItem] = useState('');
@@ -251,10 +269,10 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
     if (!farm || !cost) return;
     setSaving(true);
 
-    // enqueueWrite generates the row's id and returns it immediately — the
+    // enqueueInsert generates the row's id and returns it immediately — the
     // expense doesn't need to have reached Supabase yet for the receipt
     // below to reference the right row once it does.
-    const expenseId = await enqueueWrite('expenses', {
+    const expenseId = await enqueueInsert('expenses', {
       farm_id: farm.id,
       flock_id: flockId,
       expense_date: new Date().toISOString().slice(0, 10),
@@ -316,7 +334,7 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
       <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>CATEGORY</Text>
       <View style={styles.chipWrap}>
         {EXPENSE_CATEGORIES.map((c) => (
-          <Chip key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />
+          <Chip key={c} label={label(c)} selected={category === c} onPress={() => setCategory(c)} />
         ))}
       </View>
 
@@ -335,7 +353,7 @@ const ExpenseSheet = React.forwardRef<BottomSheet>((_, ref) => {
       <Text variant="label" tone="secondary" style={{ marginBottom: space.sm }}>PAYMENT METHOD</Text>
       <View style={[styles.chipWrap, { marginBottom: space.lg }]}>
         {PAYMENT_METHODS.map((m) => (
-          <Chip key={m} label={m} selected={method === m} onPress={() => setMethod(m)} />
+          <Chip key={m} label={label(m)} selected={method === m} onPress={() => setMethod(m)} />
         ))}
       </View>
 
@@ -351,7 +369,7 @@ ExpenseSheet.displayName = 'ExpenseSheet';
 const SaleSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const { farm } = useFarm();
   const { colors } = useTheme();
-  const { enqueueWrite } = useSync();
+  const { enqueueInsert } = useSync();
   const [flockId, setFlockId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<{ id: string; name: string } | null>(null);
   const [basis, setBasis] = useState<'Per Bird' | 'Per Kg'>('Per Bird');
@@ -393,7 +411,7 @@ const SaleSheet = React.forwardRef<BottomSheet>((_, ref) => {
   const save = async () => {
     if (!farm || !flockId || !customer || !birds) return;
     setSaving(true);
-    await enqueueWrite('sales', {
+    await enqueueInsert('sales', {
       farm_id: farm.id,
       flock_id: flockId,
       customer_id: customer.id,

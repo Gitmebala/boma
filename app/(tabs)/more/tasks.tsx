@@ -15,6 +15,7 @@ import { capStaggerIndex } from '@/components/ui/VirtualList';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme, useTabBarClearance } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { daysBetween, formatShortDate } from '@/lib/format';
 import { space } from '@/lib/theme';
@@ -35,6 +36,7 @@ interface TaskRow {
 export default function TasksScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const { enqueueInsert, enqueueUpdate } = useSync();
   const clearance = useTabBarClearance();
   const [tasks, setTasks] = useState<TaskRow[] | null>(null);
   const [showDone, setShowDone] = useState(false);
@@ -53,16 +55,16 @@ export default function TasksScreen() {
   const toggleDone = async (t: TaskRow) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTasks((prev) => prev!.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
-    await supabase.from('tasks').update({
+    await enqueueUpdate('tasks', t.id, {
       done: !t.done,
       done_at: !t.done ? new Date().toISOString() : null,
-    }).eq('id', t.id);
+    });
   };
 
   const addTask = async () => {
     if (!farm || !title.trim()) return;
     setSaving(true);
-    await supabase.from('tasks').insert({
+    await enqueueInsert('tasks', {
       farm_id: farm.id, title: title.trim(), category, due_date: new Date().toISOString().slice(0, 10),
     });
     setSaving(false); setTitle(''); setAdding(false);

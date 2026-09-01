@@ -16,6 +16,7 @@ import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { GrowthCurve, CurvePoint } from '@/components/ui/Charts';
 import { useTheme } from '@/lib/ThemeContext';
+import { useSync } from '@/lib/sync';
 import { supabase, Flock, FlockSummary, Vaccination, DailyLog, Expense } from '@/lib/supabase';
 import { formatPct, formatKES, daysBetween, formatShortDate } from '@/lib/format';
 import { cobb500Curve, growthVerdict } from '@/lib/insights';
@@ -26,6 +27,7 @@ const TABS = ['Overview', 'Growth', 'Vaccines', 'Costs'] as const;
 export default function FlockDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
+  const { enqueueUpdate } = useSync();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Overview');
   const [flock, setFlock] = useState<Flock | null>(null);
   const [summary, setSummary] = useState<FlockSummary | null>(null);
@@ -51,7 +53,12 @@ export default function FlockDetailScreen() {
 
   const markVaccineDone = async (v: Vaccination) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await supabase.from('vaccinations').update({ done: true, date_given: new Date().toISOString().slice(0, 10) }).eq('id', v.id);
+    // Queued rather than fired directly: a farmer marks a vaccine done
+    // standing in the house, which is exactly where signal is worst.
+    await enqueueUpdate('vaccinations', v.id, {
+      done: true,
+      date_given: new Date().toISOString().slice(0, 10),
+    });
     load();
   };
 
@@ -315,6 +322,7 @@ function BirdStat({ label, value, tone = 'primary' }: { label: string; value: nu
 }
 
 const QuickLogSheet = React.forwardRef<BottomSheet, { flockId: string; onSaved: () => void }>(({ flockId, onSaved }, ref) => {
+  const { enqueueInsert } = useSync();
   const [deaths, setDeaths] = useState('0');
   const [feed, setFeed] = useState('');
   const [weight, setWeight] = useState('');
@@ -322,7 +330,7 @@ const QuickLogSheet = React.forwardRef<BottomSheet, { flockId: string; onSaved: 
 
   const save = async () => {
     setSaving(true);
-    await supabase.from('daily_logs').insert({
+    await enqueueInsert('daily_logs', {
       flock_id: flockId,
       log_date: new Date().toISOString().slice(0, 10),
       birds_died: Number(deaths) || 0,
@@ -349,11 +357,15 @@ QuickLogSheet.displayName = 'QuickLogSheet';
 
 const CountBirdsSheet = React.forwardRef<BottomSheet, { flockId: string; currentEstimate: number; onSaved: () => void }>(
   ({ flockId, currentEstimate, onSaved }, ref) => {
+    const { enqueueUpdate } = useSync();
     const [count, setCount] = useState(String(currentEstimate));
     const [saving, setSaving] = useState(false);
     const save = async () => {
       setSaving(true);
-      await supabase.from('flocks').update({ birds_counted: Number(count) || 0, date_counted: new Date().toISOString().slice(0, 10) }).eq('id', flockId);
+      await enqueueUpdate('flocks', flockId, {
+        birds_counted: Number(count) || 0,
+        date_counted: new Date().toISOString().slice(0, 10),
+      });
       setSaving(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       (ref as any)?.current?.close();

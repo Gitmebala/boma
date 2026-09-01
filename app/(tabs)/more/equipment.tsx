@@ -11,6 +11,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { formatKES, daysBetween } from '@/lib/format';
 import { space, layout } from '@/lib/theme';
@@ -18,6 +19,7 @@ import { space, layout } from '@/lib/theme';
 export default function EquipmentScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const { enqueueInsert } = useSync();
   const [rows, setRows] = useState<any[]>([]);
   const [item, setItem] = useState('');
   const [cost, setCost] = useState('');
@@ -34,7 +36,7 @@ export default function EquipmentScreen() {
   const save = async () => {
     if (!farm || !item.trim() || !cost) return;
     setSaving(true);
-    await supabase.from('equipment').insert({ farm_id: farm.id, date_bought: new Date().toISOString().slice(0, 10), item: item.trim(), cost: Number(cost), useful_life_years: Number(life) || 3 });
+    await enqueueInsert('equipment', { farm_id: farm.id, date_bought: new Date().toISOString().slice(0, 10), item: item.trim(), cost: Number(cost), useful_life_years: Number(life) || 3 });
     setSaving(false); setItem(''); setCost(''); setLife('3');
     load();
   };

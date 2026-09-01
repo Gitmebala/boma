@@ -13,33 +13,57 @@ import { supabase } from './supabase';
  * retry — on weak signal, a farmer's whole day of logging could vanish while
  * the app told them it worked.
  *
- * The fix is local-write-first: `enqueueWrite` durably persists to
- * AsyncStorage BEFORE returning. That local, immediate persistence — not a
- * server round trip — is what "saved" now means to the UI. A caller gets its
- * id back and fires its success haptic right away; syncing to Supabase
- * happens in the background, and the queue length is the one honest signal
- * of what hasn't reached the server yet.
+ * The fix is local-write-first: `enqueueInsert`/`enqueueUpdate` durably
+ * persist to AsyncStorage BEFORE returning. That local, immediate
+ * persistence — not a server round trip — is what "saved" now means to the
+ * UI. Syncing to Supabase happens in the background, and the queue length is
+ * the one honest signal of what hasn't reached the server yet.
  *
- * Scope: the three highest-value daily-habit writes (daily_logs, expenses,
- * sales) go through this. Everything else in the app still writes directly —
- * converting the rest is real, but separate, work.
+ * Two operation kinds:
+ *  - insert: a brand-new row the farmer is creating. The client generates
+ *    the id up front, so a caller that needs it immediately (e.g. attaching
+ *    a receipt to an expense) has it before the row has even reached the
+ *    server.
+ *  - update: a patch to a row that already exists. Naturally idempotent —
+ *    re-applying the same patch after a retry does nothing harmful, so there
+ *    is no duplicate-key case to special-case the way inserts need.
  */
 
-type QueueTable = 'daily_logs' | 'expenses' | 'sales';
+type QueueTable =
+  | 'daily_logs'
+  | 'expenses'
+  | 'sales'
+  | 'feed_stock'
+  | 'equipment'
+  | 'suppliers'
+  | 'tasks'
+  | 'disease_reports'
+  | 'vaccinations'
+  | 'flocks'
+  | 'farm_members'
+  | 'farms'
+  | 'profiles';
 
-interface QueuedWrite {
-  /** Client-generated — also becomes the row's real primary key, so a
-   *  caller that needs the id (e.g. to attach a receipt to an expense)
-   *  has it immediately, before the row has even reached the server. */
+interface InsertOp {
+  kind: 'insert';
+  /** Client-generated — also becomes the row's real primary key. */
   id: string;
   table: QueueTable;
   payload: Record<string, any>;
-  createdAt: number;
-  attempts: number;
-  lastError?: string;
 }
 
-const STORAGE_KEY = 'boma.sync-queue.v1';
+interface UpdateOp {
+  kind: 'update';
+  /** Queue bookkeeping id — distinct from the row being patched. */
+  id: string;
+  table: QueueTable;
+  rowId: string;
+  patch: Record<string, any>;
+}
+
+type QueuedOp = (InsertOp | UpdateOp) & { createdAt: number; attempts: number; lastError?: string };
+
+const STORAGE_KEY = 'boma.sync-queue.v2';
 
 /** RFC4122 v4. No dependency for this — it only has to be unique among
  *  Boma's own rows, not globally, and this is a dozen lines. */
@@ -51,7 +75,7 @@ export function randomUUID(): string {
   });
 }
 
-async function loadQueue(): Promise<QueuedWrite[]> {
+async function loadQueue(): Promise<QueuedOp[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -60,7 +84,7 @@ async function loadQueue(): Promise<QueuedWrite[]> {
   }
 }
 
-async function persist(items: QueuedWrite[]): Promise<void> {
+async function persist(items: QueuedOp[]): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {
@@ -78,15 +102,16 @@ interface SyncCtx {
    *  (that's normal and handled by the queue) but the server rejecting a
    *  write outright, which no amount of retrying will fix. */
   lastFatalError: string | null;
-  enqueueWrite: (table: QueueTable, payload: Record<string, any>) => Promise<string>;
+  enqueueInsert: (table: QueueTable, payload: Record<string, any>) => Promise<string>;
+  enqueueUpdate: (table: QueueTable, rowId: string, patch: Record<string, any>) => Promise<void>;
   /**
-   * Amend a write that may not have reached the server yet (e.g. attaching
-   * a receipt URL to an expense after the fact). If the row is still
-   * queued, the patch is folded into its payload before it ever syncs —
-   * issuing a plain `.update()` in that case would silently touch zero
-   * rows, since the row wouldn't exist on the server yet. Returns true if
-   * it patched the queue; false means the row has already synced and the
-   * caller should update it directly.
+   * Amend an insert that may not have reached the server yet (e.g.
+   * attaching a receipt URL to an expense after the fact). If the row is
+   * still queued, the patch is folded into its payload before it ever
+   * syncs — issuing a plain `.update()` in that case would silently touch
+   * zero rows, since the row wouldn't exist on the server yet. Returns
+   * true if it patched the queue; false means the row has already synced
+   * and the caller should update it directly.
    */
   patchQueuedIfPending: (id: string, patch: Record<string, any>) => Promise<boolean>;
   retryNow: () => void;
@@ -97,7 +122,8 @@ const SyncContext = createContext<SyncCtx>({
   isOnline: true,
   isSyncing: false,
   lastFatalError: null,
-  enqueueWrite: async () => '',
+  enqueueInsert: async () => '',
+  enqueueUpdate: async () => {},
   patchQueuedIfPending: async () => false,
   retryNow: () => {},
 });
@@ -105,11 +131,11 @@ const SyncContext = createContext<SyncCtx>({
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   // The ref is the single source of truth, mutated synchronously — `queue`
   // (state) exists only to trigger re-renders for `pendingCount`. Reading
-  // React state for a value that three different async functions
-  // (enqueue/flush/patch) all need to agree on in the same tick is exactly
-  // the kind of stale-closure trap that caused this app's original bug;
-  // a ref sidesteps it entirely.
-  const queueRef = useRef<QueuedWrite[]>([]);
+  // React state for a value that several async functions (enqueue/flush/
+  // patch) all need to agree on in the same tick is exactly the kind of
+  // stale-closure trap that caused this app's original bug; a ref
+  // sidesteps it entirely.
+  const queueRef = useRef<QueuedOp[]>([]);
   const [, bumpVersion] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -117,7 +143,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [lastFatalError, setLastFatalError] = useState<string | null>(null);
   const flushingRef = useRef(false);
 
-  const commit = useCallback((next: QueuedWrite[]) => {
+  const commit = useCallback((next: QueuedOp[]) => {
     queueRef.current = next;
     bumpVersion((v) => v + 1);
     return persist(next);
@@ -138,25 +164,29 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     try {
       const current = queueRef.current;
-      const remaining: QueuedWrite[] = [];
+      const remaining: QueuedOp[] = [];
       let stopEarly = false;
       let fatal: string | null = null;
 
-      for (const item of current) {
+      for (const op of current) {
         if (stopEarly) {
-          remaining.push(item);
+          remaining.push(op);
           continue;
         }
 
         try {
-          const { error } = await supabase.from(item.table).insert({ id: item.id, ...item.payload });
+          const { error } =
+            op.kind === 'insert'
+              ? await supabase.from(op.table).insert({ id: op.id, ...op.payload })
+              : await supabase.from(op.table).update(op.patch).eq('id', op.rowId);
 
           if (!error) continue; // reached the server — drop from the queue
 
-          // 23505 = unique_violation. An earlier attempt actually landed and
-          // only the local acknowledgement was lost (e.g. the app was
-          // killed mid-request) — a success, not a failure.
-          if (error.code === '23505') continue;
+          // 23505 = unique_violation, only possible on inserts. An earlier
+          // attempt actually landed and only the local acknowledgement was
+          // lost (e.g. the app was killed mid-request) — a success, not a
+          // failure.
+          if (op.kind === 'insert' && error.code === '23505') continue;
 
           // A rejection with a Postgres error code (RLS denial, a check
           // constraint, a bad foreign key) fails identically forever — no
@@ -166,11 +196,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           // ordinary, expected, silently-retried case.
           if (error.code) fatal = error.message;
 
-          remaining.push({ ...item, attempts: item.attempts + 1, lastError: error.message });
+          remaining.push({ ...op, attempts: op.attempts + 1, lastError: error.message });
         } catch (e: any) {
           // A thrown exception (e.g. aborted mid-request) is treated the
           // same as a network-level failure: retry later, no fatal banner.
-          remaining.push({ ...item, attempts: item.attempts + 1, lastError: e?.message ?? 'Network error' });
+          remaining.push({ ...op, attempts: op.attempts + 1, lastError: e?.message ?? 'Network error' });
         }
         // Stop at the first failure in a batch: if it's connectivity, every
         // later item will fail identically, and there's no reason to burn
@@ -204,23 +234,33 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydrated, flush]);
 
-  const enqueueWrite = useCallback(
+  const enqueueInsert = useCallback(
     async (table: QueueTable, payload: Record<string, any>) => {
-      const item: QueuedWrite = { id: randomUUID(), table, payload, createdAt: Date.now(), attempts: 0 };
+      const op: QueuedOp = { kind: 'insert', id: randomUUID(), table, payload, createdAt: Date.now(), attempts: 0 };
       // Durable BEFORE returning — this line is what "saved" now means.
-      await commit([...queueRef.current, item]);
+      await commit([...queueRef.current, op]);
       flush(); // opportunistic; the caller's success does not wait on this
-      return item.id;
+      return op.id;
+    },
+    [commit, flush]
+  );
+
+  const enqueueUpdate = useCallback(
+    async (table: QueueTable, rowId: string, patch: Record<string, any>) => {
+      const op: QueuedOp = { kind: 'update', id: randomUUID(), table, rowId, patch, createdAt: Date.now(), attempts: 0 };
+      await commit([...queueRef.current, op]);
+      flush();
     },
     [commit, flush]
   );
 
   const patchQueuedIfPending = useCallback(
     async (id: string, patch: Record<string, any>) => {
-      const idx = queueRef.current.findIndex((i) => i.id === id);
+      const idx = queueRef.current.findIndex((op) => op.kind === 'insert' && op.id === id);
       if (idx === -1) return false;
       const next = [...queueRef.current];
-      next[idx] = { ...next[idx], payload: { ...next[idx].payload, ...patch } };
+      const existing = next[idx] as InsertOp & { createdAt: number; attempts: number; lastError?: string };
+      next[idx] = { ...existing, payload: { ...existing.payload, ...patch } };
       await commit(next);
       return true;
     },
@@ -232,7 +272,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     isOnline,
     isSyncing,
     lastFatalError,
-    enqueueWrite,
+    enqueueInsert,
+    enqueueUpdate,
     patchQueuedIfPending,
     retryNow: flush,
   };

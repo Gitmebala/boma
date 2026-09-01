@@ -12,6 +12,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { space, radius, layout } from '@/lib/theme';
 
@@ -27,6 +28,7 @@ interface Member {
 export default function TeamScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const { enqueueUpdate } = useSync();
   const [members, setMembers] = useState<Member[]>([]);
   const [phone, setPhone] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -74,7 +76,7 @@ export default function TeamScreen() {
   const toggleMoney = async (m: Member, value: boolean) => {
     Haptics.selectionAsync();
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, can_view_money: value } : x)));
-    await supabase.from('farm_members').update({ can_view_money: value }).eq('id', m.id);
+    await enqueueUpdate('farm_members', m.id, { can_view_money: value });
   };
 
   const removeMember = (m: Member) => {

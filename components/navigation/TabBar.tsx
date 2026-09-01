@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/Text';
 import { useTheme } from '@/lib/ThemeContext';
+import { useTranslation } from '@/lib/i18n';
 import { motion, radius, space, layout, elevation } from '@/lib/theme';
 
 const ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
@@ -30,6 +31,7 @@ const BAR_ROUTES = ['home', 'flocks', 'log', 'money', 'reports'];
 
 export function TabBar({ state, navigation }: { state: any; navigation: any }) {
   const { colors, scheme } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   const routes = BAR_ROUTES.map((name) => state.routes.find((r: any) => r.name === name)).filter(Boolean);
@@ -67,7 +69,7 @@ export function TabBar({ state, navigation }: { state: any; navigation: any }) {
               key={route.key}
               focused={focused}
               icon={focused ? ICONS[route.name]?.active : ICONS[route.name]?.inactive}
-              label={LABELS[route.name] ?? route.name}
+              label={route.name === 'log' ? '' : t(('tabs.' + route.name) as any)}
               onPress={onPress}
             />
           );

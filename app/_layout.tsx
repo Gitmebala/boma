@@ -20,6 +20,7 @@ import { ThemeProvider, useTheme } from '@/lib/ThemeContext';
 import { AuthProvider } from '@/lib/AuthContext';
 import { FarmProvider } from '@/lib/FarmContext';
 import { SyncProvider } from '@/lib/sync';
+import { I18nProvider } from '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -45,9 +46,11 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <FarmProvider>
-            <SyncProvider>
-              <RootNav />
-            </SyncProvider>
+            <I18nProvider>
+              <SyncProvider>
+                <RootNav />
+              </SyncProvider>
+            </I18nProvider>
           </FarmProvider>
         </AuthProvider>
       </ThemeProvider>

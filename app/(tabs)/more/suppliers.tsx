@@ -12,12 +12,14 @@ import { FadeInView } from '@/components/ui/FadeInView';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase, Supplier } from '@/lib/supabase';
 import { space, layout } from '@/lib/theme';
 
 export default function SuppliersScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const { enqueueInsert } = useSync();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -33,7 +35,7 @@ export default function SuppliersScreen() {
   const add = async () => {
     if (!farm || !name.trim()) return;
     setSaving(true);
-    await supabase.from('suppliers').insert({ farm_id: farm.id, name: name.trim() });
+    await enqueueInsert('suppliers', { farm_id: farm.id, name: name.trim() });
     setSaving(false); setName('');
     load();
   };

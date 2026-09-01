@@ -8,6 +8,7 @@ import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
+import { useTranslation } from '@/lib/i18n';
 import { radius, space } from '@/lib/theme';
 
 const OPTIONS = [
@@ -17,9 +18,13 @@ const OPTIONS = [
 
 export default function LanguageScreen() {
   const { colors } = useTheme();
+  const { setLocale } = useTranslation();
   const [selected, setSelected] = useState<'en' | 'sw'>('en');
 
   const onContinue = async () => {
+    // Goes through the provider so the rest of onboarding is already in the
+    // chosen language — there is no profile row yet to read it from.
+    setLocale(selected);
     await AsyncStorage.setItem('boma_language', selected);
     router.push('/(onboarding)/phone');
   };

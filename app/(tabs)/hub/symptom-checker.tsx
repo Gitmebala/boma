@@ -12,6 +12,7 @@ import { FadeInView } from '@/components/ui/FadeInView';
 import { useTheme } from '@/lib/ThemeContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { space, radius, layout } from '@/lib/theme';
 
@@ -27,6 +28,7 @@ export default function SymptomCheckerScreen() {
   const { colors } = useTheme();
   const { profile } = useAuth();
   const { farm } = useFarm();
+  const { enqueueInsert } = useSync();
   const sw = profile?.language === 'sw';
 
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
@@ -60,7 +62,7 @@ export default function SymptomCheckerScreen() {
 
   const reportOutbreak = async (diseaseName: string) => {
     if (!farm) return;
-    await supabase.from('disease_reports').insert({
+    await enqueueInsert('disease_reports', {
       farm_id: farm.id, county: farm.county, disease: diseaseName, severity: 'suspected',
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

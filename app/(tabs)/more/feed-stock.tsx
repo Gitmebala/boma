@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenList, capStaggerIndex } from '@/components/ui/VirtualList';
 import { useTheme } from '@/lib/ThemeContext';
 import { useFarm } from '@/lib/FarmContext';
+import { useSync } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { formatKES } from '@/lib/format';
 import { space } from '@/lib/theme';
@@ -23,6 +24,7 @@ const FEED_TYPES = ['Starter', 'Grower', 'Finisher', 'Other'];
 export default function FeedStockScreen() {
   const { colors } = useTheme();
   const { farm } = useFarm();
+  const { enqueueInsert } = useSync();
   const [rows, setRows] = useState<any[]>([]);
   const [feedType, setFeedType] = useState(FEED_TYPES[0]);
   const [bagsIn, setBagsIn] = useState('');
@@ -62,7 +64,7 @@ export default function FeedStockScreen() {
   const save = async () => {
     if (!farm || (!bagsIn && !bagsOut)) return;
     setSaving(true);
-    await supabase.from('feed_stock').insert({
+    await enqueueInsert('feed_stock', {
       farm_id: farm.id, tx_date: new Date().toISOString().slice(0, 10), feed_type: feedType,
       bags_in: Number(bagsIn) || 0, bags_out: Number(bagsOut) || 0, cost_per_bag: costPerBag ? Number(costPerBag) : null,
     });

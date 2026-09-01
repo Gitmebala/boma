@@ -8,17 +8,23 @@ import { Text } from '@/components/ui/Text';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useTheme } from '@/lib/ThemeContext';
 import { useAuth } from '@/lib/AuthContext';
+import { useTranslation } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import { radius, space } from '@/lib/theme';
 
 export default function LanguageScreen() {
   const { colors } = useTheme();
   const { profile, refreshProfile } = useAuth();
+  const { setLocale } = useTranslation();
   const [selected, setSelected] = useState<'en' | 'sw'>(profile?.language ?? 'en');
 
   const choose = async (lang: 'en' | 'sw') => {
     setSelected(lang);
     Haptics.selectionAsync();
+    // setLocale re-renders the whole app immediately and persists the
+    // choice; the profile write is what makes it follow the farmer to a
+    // new phone.
+    setLocale(lang);
     if (profile) {
       await supabase.from('profiles').update({ language: lang }).eq('id', profile.id);
       await refreshProfile();
